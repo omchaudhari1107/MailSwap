@@ -9,11 +9,12 @@ import {
 } from "react-native";
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const CLIENT_ID = "765790071927-i3ba43fvqrquhgpbkbmg9qhfuhlpc2do.apps.googleusercontent.com";
-// const REDIRECT_URI = AuthSession.makeRedirectUri({ useProxy: true }); // Ensures Expo handles the redirect correctly
+const CLIENT_ID = "578812190332-3npv0t8736foo5li1huer9rf5ir8jap6.apps.googleusercontent.com";
+// const REDIRECT_URI = 'https://ai-mail-3288f.firebaseapp.com/__/auth/handler';
 const REDIRECT_URI = 'https://auth.expo.io/@gpsync/emailscrap';
 export default function GoogleAuth({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -23,12 +24,12 @@ export default function GoogleAuth({ navigation }) {
     clientId: CLIENT_ID,
     redirectUri: REDIRECT_URI,
     scopes: ['email', 'profile'],
+    useProxy: true, // Ensures Expo handles authentication correctly
   });
 
   React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      fetchEmails(authentication.accessToken);
+    if (response?.type === 'success' && response.authentication) {
+      fetchEmails(response.authentication.accessToken);
     }
   }, [response]);
 
@@ -37,7 +38,10 @@ export default function GoogleAuth({ navigation }) {
     setError(null);
     
     try {
-      await promptAsync();
+      const result = await promptAsync();
+      if (result.type !== 'success') {
+        setError("Authentication failed. Please try again.");
+      }
     } catch (error) {
       setError("Failed to sign in. Please try again.");
       console.error("❌ Google Sign-In Error:", error);
@@ -48,7 +52,7 @@ export default function GoogleAuth({ navigation }) {
 
   async function fetchEmails(token) {
     try {
-      // First, fetch user profile for avatar
+      // Fetch user profile
       const userResponse = await fetch(
         "https://www.googleapis.com/oauth2/v2/userinfo",
         {
@@ -66,10 +70,7 @@ export default function GoogleAuth({ navigation }) {
       );
   
       const data = await response.json();
-      
-      if (!data.messages) {
-        throw new Error("No emails found");
-      }
+      if (!data.messages) throw new Error("No emails found");
 
       // Fetch detailed information for each email
       const emailDetails = await Promise.all(
@@ -89,13 +90,13 @@ export default function GoogleAuth({ navigation }) {
         const subject = headers.find(h => h.name === "Subject")?.value || "No Subject";
         const from = headers.find(h => h.name === "From")?.value || "Unknown";
         const date = headers.find(h => h.name === "Date")?.value;
-        
-        // Get email body
+
+        // Get email body safely
         let body = "";
         if (email.payload.parts) {
           const textPart = email.payload.parts.find(part => part.mimeType === "text/plain");
-          if (textPart && textPart.body.data) {
-            body = Buffer.from(textPart.body.data, 'base64').toString();
+          if (textPart?.body?.data) {
+            body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/')); // Proper Base64 decoding
           }
         }
 
