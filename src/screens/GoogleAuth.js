@@ -15,7 +15,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const CLIENT_ID = "578812190332-3npv0t8736foo5li1huer9rf5ir8jap6.apps.googleusercontent.com";
 // const REDIRECT_URI = 'https://ai-mail-3288f.firebaseapp.com/__/auth/handler';
-const REDIRECT_URI = 'https://auth.expo.io/@gpsync/emailscrap';
+const REDIRECT_URI = 'https://ai-mail-3288f.firebaseapp.com/__/auth/handler';
 export default function GoogleAuth({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
