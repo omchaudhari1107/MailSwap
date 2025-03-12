@@ -1,28 +1,18 @@
 {
   "expo": {
-    "name": "emailscrap",
-    "slug": "emailscrap",
+    "name": "MailSwap",
+    "slug": "MailSwap",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+    "android": {
+      "package": "com.gpsync.MailSwap"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.gpsync.MailSwap"
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+    "extra": {
+      "eas": {
+        "projectId": "36b8f1f8-cbec-4ac9-9f3b-59b70d715b54"
       }
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
