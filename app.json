@@ -4,7 +4,8 @@
     "slug": "MailSwap",
     "version": "1.0.0",
     "android": {
-      "package": "com.mailswap.MailSwap"
+      "package": "com.mailswap.MailSwap",
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "ios": {
       "bundleIdentifier": "com.mailswap.MailSwap"

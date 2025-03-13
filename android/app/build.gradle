@@ -86,9 +86,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.gpsync.MailSwap'
+    namespace 'com.mailswap.MailSwap'
     defaultConfig {
-        applicationId 'com.gpsync.MailSwap'
+        applicationId 'com.mailswap.MailSwap'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -174,3 +174,5 @@ dependencies {
         implementation jscFlavor
     }
 }
+apply plugin: 'com.android.application'
+apply plugin: 'com.google.gms.google-services'

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "436082064915",
+    "project_id": "mailswap-6ebd0",
+    "storage_bucket": "mailswap-6ebd0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436082064915:android:3cf0af6c7868e8b56849e6",
+        "android_client_info": {
+          "package_name": "com.mailswap.MailSwap"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "436082064915-fpoufmvfelkh80eiig1l1n36vgg0r7is.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mailswap.MailSwap",
+            "certificate_hash": "dcbce30909a28cf7ca5a5a16a6bce91b1c2e8cdd"
+          }
+        },
+        {
+          "client_id": "436082064915-6nmiivm3l0o559k0udekamepvvht7q1j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6OWtghkEoeI-y3ZKwFMt6VBoAIhEM9Nw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "436082064915-6nmiivm3l0o559k0udekamepvvht7q1j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
