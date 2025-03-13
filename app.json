@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "MailSwap",
+    "slug": "MailSwap",
+    "version": "1.0.0",
+    "android": {
+      "package": "com.mailswap.MailSwap"
+    },
+    "ios": {
+      "bundleIdentifier": "com.mailswap.MailSwap"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "962e3f39-f184-462f-afce-f56521c175b3"
+      }
+    },
+    "owner": "mailswap"
+  }
+}
