@@ -1,18 +1,16 @@
 import React from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import auth from '@react-native-firebase/auth';
-
 const Profile = ({ route, navigation }) => {
   const { user } = route.params;
 
-  const signOut = async () => {
+  const handleSignOut = async () => {
     try {
+      // Sign out from Google
       await GoogleSignin.signOut();
-      await auth().signOut();
       navigation.navigate('GoogleAuth');
     } catch (error) {
-      console.log(error);
+      console.error('Sign out error:', error);
     }
   };
 
@@ -25,7 +23,7 @@ const Profile = ({ route, navigation }) => {
       <Text style={styles.name}>{user.displayName}</Text>
       <Text style={styles.email}>{user.email}</Text>
       
-      <TouchableOpacity style={styles.signOutButton} onPress={signOut}>
+      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </View>

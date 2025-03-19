@@ -1,4 +1,4 @@
-package com.gpsync.MailSwap
+package com.mailswap.MailSwap
 
 import android.os.Build
 import android.os.Bundle

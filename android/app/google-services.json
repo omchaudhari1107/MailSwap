@@ -1,41 +1,41 @@
 {
   "project_info": {
-    "project_number": "436082064915",
-    "project_id": "mailswap-6ebd0",
-    "storage_bucket": "mailswap-6ebd0.firebasestorage.app"
+    "project_number": "798624486063",
+    "project_id": "mailswap-dd0cd",
+    "storage_bucket": "mailswap-dd0cd.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:436082064915:android:3cf0af6c7868e8b56849e6",
+        "mobilesdk_app_id": "1:798624486063:android:760ba77dad2c724f64fa5a",
         "android_client_info": {
           "package_name": "com.mailswap.MailSwap"
         }
       },
       "oauth_client": [
         {
-          "client_id": "436082064915-fpoufmvfelkh80eiig1l1n36vgg0r7is.apps.googleusercontent.com",
+          "client_id": "798624486063-ls6uiggb21190sqgf75vg1s692sf1u9p.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.mailswap.MailSwap",
-            "certificate_hash": "dcbce30909a28cf7ca5a5a16a6bce91b1c2e8cdd"
+            "certificate_hash": "05d3420709c3d56c24b4c32c9cfcf4535fa8f951"
           }
         },
         {
-          "client_id": "436082064915-6nmiivm3l0o559k0udekamepvvht7q1j.apps.googleusercontent.com",
+          "client_id": "798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyB6OWtghkEoeI-y3ZKwFMt6VBoAIhEM9Nw"
+          "current_key": "AIzaSyA74rycHr6XQV_I3DiofrAO2Nymcs08-pA"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "436082064915-6nmiivm3l0o559k0udekamepvvht7q1j.apps.googleusercontent.com",
+              "client_id": "798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

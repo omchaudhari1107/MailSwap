@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.gpsync.MailSwap</string>
+          <string>com.mailswap.MailSwap</string>
         </array>
       </dict>
       <dict>

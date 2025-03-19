@@ -11,7 +11,7 @@ const GoogleAuth = () => {
 
   useEffect(() => {
     GoogleSignin.configure({
-      webClientId: '436082064915-6nmiivm3l0o559k0udekamepvvht7q1j.apps.googleusercontent.com',
+      webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
       scopes: ['https://www.googleapis.com/auth/userinfo.email'],
       offlineAccess: true,
     });
@@ -21,8 +21,7 @@ const GoogleAuth = () => {
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.idToken;
-
+      const idToken = userInfo.data.idToken;
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       setUser(userCredential.user);

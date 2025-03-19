@@ -2,13 +2,12 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 //can be generated from google-services.json
 const firebaseConfig = {
-  apiKey: "AIzaSyB6OWtghkEoeI-y3ZKwFMt6VBoAIhEM9Nw",
-  authDomain: "mailswap-6ebd0.firebaseapp.com",
-  projectId: "mailswap-6ebd0",
-  storageBucket: "mailswap-6ebd0.firebasestorage.app",
-  messagingSenderId: "436082064915",
-  appId: "1:436082064915:android:3cf0af6c7868e8b56849e6",
-  clientId: "436082064915-fpoufmvfelkh80eiig1l1n36vgg0r7is.apps.googleusercontent.com"
+  apiKey: "AIzaSyA74rycHr6XQV_I3DiofrAO2Nymcs08-pA",
+  authDomain: "mailswap-dd0cd.firebaseapp.com",
+  projectId: "mailswap-dd0cd",
+  storageBucket: "mailswap-dd0cd.firebasestorage.app",
+  messagingSenderId: "798624486063",
+  appId: "1:798624486063:android:760ba77dad2c724f64fa5a",
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
