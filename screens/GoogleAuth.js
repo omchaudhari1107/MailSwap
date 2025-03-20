@@ -21,7 +21,8 @@ const GoogleAuth = () => {
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data.idToken;
+      const UserData = userInfo.data;
+      const idToken = UserData.idToken;
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       setUser(userCredential.user);
