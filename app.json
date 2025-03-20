@@ -3,6 +3,7 @@
     "name": "MailSwap",
     "slug": "MailSwap",
     "version": "1.0.0",
+    "plugins": ["expo-router"],
     "android": {
       "package": "com.mailswap.MailSwap",
       "googleServicesFile": "./android/app/google-services.json"
