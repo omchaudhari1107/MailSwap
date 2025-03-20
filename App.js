@@ -8,15 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 import GoogleAuth from './screens/GoogleAuth';
 import Profile from './screens/Profile';
 import MailBox from './screens/MailBox';
+import EmailDetail from './screens/EmailDetail';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function HomeTabs({ route }) {
+  // console.log(route)
   // Get the user data from the route params
-  const { user } = route.params || {};
-
-  // console.log(user)
+  const { user, emails } = route.params || {};
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -39,7 +39,7 @@ function HomeTabs({ route }) {
       <Tab.Screen 
         name="Mail" 
         component={MailBox}
-        initialParams={{ user }}
+        initialParams={{ user, emails }}
       />
       <Tab.Screen 
         name="Profile" 
@@ -64,7 +64,11 @@ export default function App() {
           component={HomeTabs}
           options={{ headerShown: false }}
         />
-        
+        <Stack.Screen 
+          name="EmailDetail" 
+          component={EmailDetail}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>

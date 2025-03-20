@@ -1,102 +1,77 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, FlatList, TextInput, SafeAreaView, StatusBar, Platform } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, FlatList, TextInput, SafeAreaView, StatusBar, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Profile from './Profile';
 
-const DUMMY_EMAILS = [
-  {
-    id: '1',
-    sender: 'John Doe',
-    subject: 'Weekly Meeting Notes',
-    preview: 'Here are the meeting notes from yesterdays discussion...',
-    time: '10:30 AM',
-    isStarred: false,
-    isRead: false,
-    avatar: 'J',
-    color: '#1a73e8',
-  },
-  {
-    id: '2',
-    sender: 'Amazon',
-    subject: 'Your Order has been shipped',
-    preview: 'Your package is on its way! Expected delivery...',
-    time: '9:15 AM',
-    isStarred: true,
-    isRead: true,
-    avatar: 'A',
-    color: '#ea4335',
-  },
-  {
-    id: '3',
-    sender: 'LinkedIn',
-    subject: 'New job opportunities for you',
-    preview: 'Based on your profile, we found these jobs...',
-    time: 'Yesterday',
-    isStarred: false,
-    isRead: true,
-    avatar: 'L',
-    color: '#0077b5',
-  },
-  {
-    id: '4',
-    sender: 'GitHub',
-    subject: 'Security alert: New sign-in',
-    preview: 'We noticed a new sign-in to your account...',
-    time: 'Yesterday',
-    isStarred: true,
-    isRead: false,
-    avatar: 'G',
-    color: '#2b3137',
-  },
-  {
-    id: '5',
-    sender: 'Netflix',
-    subject: 'New on Netflix: Shows you might like',
-    preview: 'Check out these new releases based on...',
-    time: 'Wed',
-    isStarred: false,
-    isRead: true,
-    avatar: 'N',
-    color: '#e50914',
-  },
-];
 
+const EmailItem = ({ email, onPress }) => {
+  let avatarSource = email.avatar;
+  if (email.avatar === "'" || email.avatar === '"') {
+    avatarSource = "https://media.istockphoto.com/id/1345388323/vector/human-silhouette-isolated-vector-icon.jpg?s=612x612&w=0&k=20&c=a1wg9LYywdqDUGt9rifrf16XEdWZbWe7ajuYxJTxEI=";
+  }
 
-const EmailItem = ({ email }) => (
-  <TouchableOpacity style={[styles.emailItem, !email.isRead && styles.unreadEmail]}>
-    <View style={[styles.senderIcon, { backgroundColor: email.color }]}>
-      <Text style={styles.senderInitial}>{email.avatar}</Text>
-    </View>
-    <View style={styles.emailContent}>
-      <Text style={[styles.senderName, !email.isRead && styles.unreadText]} numberOfLines={1}>
-        {email.sender}
-      </Text>
-      <View style={styles.subjectContainer}>
-        <Text style={[styles.subject, !email.isRead && styles.unreadText]} numberOfLines={1}>
-          {email.subject}
-        </Text>
-        <Text style={styles.preview} numberOfLines={1}>
-          - {email.preview}
-        </Text>
+  return (
+    <TouchableOpacity 
+      style={[styles.emailItem, !email.isRead && styles.unreadEmail]}
+      onPress={onPress}
+    >
+      <View style={[styles.senderIcon, { backgroundColor: email.color }]}>
+        {(typeof avatarSource === 'string') && avatarSource.startsWith('http') ? (
+          <Image 
+            source={{ uri: avatarSource }} 
+            style={{ width: 40, height: 40, borderRadius: 20 }}
+          />
+        ) : (
+          <Text style={styles.senderInitial}>{avatarSource}</Text>
+        )}
       </View>
-    </View>
-    <View style={styles.emailRight}>
-      <Text style={styles.time}>{email.time}</Text>
-      {email.isStarred && (
-        <Ionicons name="star" size={20} color="#f4b400" />
-      )}
-    </View>
-  </TouchableOpacity>
-);
+      <View style={styles.emailContent}>
+        <Text style={[styles.senderName, !email.isRead && styles.unreadText]} numberOfLines={1}>
+          {email.sender}
+        </Text>
+        <View style={styles.subjectContainer}>
+          <Text style={[styles.subject, !email.isRead && styles.unreadText]} numberOfLines={1}>
+            {email.subject}
+          </Text>
+          <Text style={styles.preview} numberOfLines={1}>
+            - {email.preview}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.emailRight}>
+        <Text style={styles.time}>{email.time}</Text>
+        {email.isStarred && (
+          <Ionicons name="star" size={20} color="#f4b400" />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
 
-const MailBox = () => {
+const MailBox = ({ route, navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const { emails: initialEmails } = route.params || {};
+  const [emails, setEmails] = useState(initialEmails || []);
+  const handleDeleteEmail = (emailId) => {
+    setEmails(currentEmails => 
+      currentEmails.filter(email => email.id !== emailId)
+    );
+  };
+
+  const handleToggleStar = (emailId) => {
+    setEmails(currentEmails =>
+      currentEmails.map(email =>
+        email.id === emailId
+          ? { ...email, isStarred: !email.isStarred }
+          : email
+      )
+    );
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#fff" barStyle="dark-content" />
       <View style={styles.header}>
-        
         <TouchableOpacity style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#5f6368" />
           <TextInput
@@ -112,15 +87,28 @@ const MailBox = () => {
             </TouchableOpacity>
           )}
         </TouchableOpacity>
-       
       </View>
 
-
-      <FlatList
-        data={DUMMY_EMAILS}
-        renderItem={({ item }) => <EmailItem email={item} />}
-        keyExtractor={item => item.id}
-      />
+      {emails.length > 0 ? (
+        <FlatList
+          data={emails}
+          renderItem={({ item }) => (
+            <EmailItem
+              email={item}
+              onPress={() => navigation.navigate('EmailDetail', {
+                email: item,
+                onDelete: handleDeleteEmail,
+                onToggleStar: handleToggleStar,
+              })}
+            />
+          )}
+          keyExtractor={item => item.id}
+        />
+      ) : (
+        <View style={styles.noEmailsContainer}>
+          <Text style={styles.noEmailsText}>No emails to display</Text>
+        </View>
+      )}
 
       <TouchableOpacity style={styles.fab}>
         <Ionicons name="sparkles" size={24} color="white" style={styles.aiIcon} />
@@ -274,6 +262,15 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
+  },
+  noEmailsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noEmailsText: {
+    fontSize: 16,
+    color: '#5f6368',
   },
 });
 
