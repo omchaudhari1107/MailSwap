@@ -51,7 +51,7 @@ const GoogleAuth = () => {
       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
       scopes: [
         'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/gmail.readonly'  // Add Gmail scope
+        // 'https://www.googleapis.com/auth/gmail.readonly'  // Add Gmail scope
       ],
       offlineAccess: true,
     });
@@ -92,7 +92,7 @@ const GoogleAuth = () => {
         });
         setActiveSlide(0);
       }
-    }, 3000); // Change slide every 3 seconds
+    }, 1500); // Change slide every 3 seconds
 
     return () => clearInterval(slideInterval);
   }, [activeSlide]);
@@ -100,7 +100,7 @@ const GoogleAuth = () => {
   const fetchEmails = async (accessToken) => {
     try {
       const response = await fetch(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20',
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages',
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
