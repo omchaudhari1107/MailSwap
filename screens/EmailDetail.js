@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 
 const EmailDetail = ({ route, navigation }) => {
   const { email, onDelete, onToggleStar } = route.params;
+  // console.log(email)
   const [isStarred, setIsStarred] = useState(email.isStarred);
   const [showFullHeader, setShowFullHeader] = useState(false);
 

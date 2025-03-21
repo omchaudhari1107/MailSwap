@@ -123,6 +123,7 @@ const GoogleAuth = () => {
       });
 
       const emailDetails = await Promise.all(emailPromises);
+      // console.log(emailDetails["payload"]);
       const formattedEmails = emailDetails.map((email) => ({
         id: email.id,
         sender: email.payload.headers.find(h => h.name === 'From')?.value || 'Unknown',
@@ -134,7 +135,10 @@ const GoogleAuth = () => {
         avatar: email.payload.headers.find(h => h.name === 'From')?.value.charAt(0) || '?',
         color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
       }));
-
+      console.log('Total Emails:', emailDetails.length);
+      emailDetails.forEach((email, index) => {
+        console.log(`LOG Email ${index + 1}:`, JSON.stringify(email, null, 2));
+      });
       return formattedEmails;
     } catch (error) {
       console.error('Error fetching emails:', error);
