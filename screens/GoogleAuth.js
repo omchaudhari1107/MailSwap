@@ -50,8 +50,9 @@ const GoogleAuth = () => {
     GoogleSignin.configure({
       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
       scopes: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        // 'https://www.googleapis.com/auth/gmail.readonly'  // Add Gmail scope
+        // 'https://www.googleapis.com/auth/userinfo.email',
+        // 'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify',  // Add Gmail scope
       ],
       offlineAccess: true,
     });
@@ -97,54 +98,54 @@ const GoogleAuth = () => {
     return () => clearInterval(slideInterval);
   }, [activeSlide]);
 
-  const fetchEmails = async (accessToken) => {
-    try {
-      const response = await fetch(
-        'https://gmail.googleapis.com/gmail/v1/users/me/messages',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-      const data = await response.json();
+  // const fetchEmails = async (accessToken) => {
+  //   try {
+  //     const response = await fetch(
+  //       'https://gmail.googleapis.com/gmail/v1/users/me/messages',
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${accessToken}`,
+  //         },
+  //       }
+  //     );
+  //     const data = await response.json();
       
-      // Fetch detailed information for each email
-      const emailPromises = data.messages.map(async (message) => {
-        const detailResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-        return detailResponse.json();
-      });
+  //     // Fetch detailed information for each email
+  //     const emailPromises = data.messages.map(async (message) => {
+  //       const detailResponse = await fetch(
+  //         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+  //         {
+  //           headers: {
+  //             Authorization: `Bearer ${accessToken}`,
+  //           },
+  //         }
+  //       );
+  //       return detailResponse.json();
+  //     });
 
-      const emailDetails = await Promise.all(emailPromises);
-      // console.log(emailDetails["payload"]);
-      const formattedEmails = emailDetails.map((email) => ({
-        id: email.id,
-        sender: email.payload.headers.find(h => h.name === 'From')?.value || 'Unknown',
-        subject: email.payload.headers.find(h => h.name === 'Subject')?.value || '(no subject)',
-        preview: email.snippet || '',
-        time: new Date(parseInt(email.internalDate)).toLocaleTimeString(),
-        isStarred: email.labelIds?.includes('STARRED') || false,
-        isRead: !email.labelIds?.includes('UNREAD'),
-        avatar: email.payload.headers.find(h => h.name === 'From')?.value.charAt(0) || '?',
-        color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-      }));
-      console.log('Total Emails:', emailDetails.length);
-      emailDetails.forEach((email, index) => {
-        console.log(`LOG Email ${index + 1}:`, JSON.stringify(email, null, 2));
-      });
-      return formattedEmails;
-    } catch (error) {
-      console.error('Error fetching emails:', error);
-      return [];
-    }
-  };
+  //     const emailDetails = await Promise.all(emailPromises);
+  //     // console.log(emailDetails["payload"]);
+  //     const formattedEmails = emailDetails.map((email) => ({
+  //       id: email.id,
+  //       sender: email.payload.headers.find(h => h.name === 'From')?.value || 'Unknown',
+  //       subject: email.payload.headers.find(h => h.name === 'Subject')?.value || '(no subject)',
+  //       preview: email.snippet || '',
+  //       time: new Date(parseInt(email.internalDate)).toLocaleTimeString(),
+  //       isStarred: email.labelIds?.includes('STARRED') || false,
+  //       isRead: !email.labelIds?.includes('UNREAD'),
+  //       avatar: email.payload.headers.find(h => h.name === 'From')?.value.charAt(0) || '?',
+  //       color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+  //     }));
+  //     // console.log('Total Emails:', emailDetails.length);
+  //     // emailDetails.forEach((email, index) => {
+  //     //   console.log(`LOG Email ${index + 1}:`, JSON.stringify(email, null, 2));
+  //     // });
+  //     return formattedEmails;
+  //   } catch (error) {
+  //     console.error('Error fetching emails:', error);
+  //     return [];
+  //   }
+  // };
 
   const signIn = async () => {
     try {
@@ -155,12 +156,12 @@ const GoogleAuth = () => {
       const userCredential = await signInWithCredential(auth, credential);
       
       // Fetch emails after successful sign-in
-      const emailData = await fetchEmails(tokens.accessToken);
+      // const emailData = await fetchEmails(tokens.accessToken);
       // console.log(emailData)
       // Navigate to HomeTabs with both user and email data
       navigation.navigate('HomeTabs', {
         user: userCredential.user,
-        emails: emailData
+        // emails: emailData
       });
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {

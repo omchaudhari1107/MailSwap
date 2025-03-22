@@ -18,124 +18,62 @@ import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-// Add this token management logic
-let tokenPromise = null;
-
-const getGoogleToken = async () => {
-  if (!tokenPromise) {
-    tokenPromise = GoogleSignin.getTokens()
-      .finally(() => {
-        tokenPromise = null;
-      });
-  }
-  return tokenPromise;
-};
-
-// Helper function to decode base64 data
-const decodeBase64 = (base64String) => {
-  try {
-    const decoded = atob(base64String.replace(/-/g, '+').replace(/_/g, '/'));
-    return decoded;
-  } catch (error) {
-    console.error('Error decoding base64:', error);
-    return '';
-  }
-};
-
-// Helper function to extract HTML content from email payload
-const getEmailBody = (payload) => {
-  if (payload.mimeType === 'text/html' && payload.body?.data) {
-    return decodeBase64(payload.body.data);
+const EmailItem = ({ email, onPress, searchQuery }) => {
+  let avatarSource = email.avatar;
+  if (email.avatar === "'" || email.avatar === '"') {
+    avatarSource = "https://media.istockphoto.com/id/1345388323/vector/human-silhouette-isolated-vector-icon.jpg?s=612x612&w=0&k=20&c=a1wg9LYywdqDUGt9rifrf16XEdWZbWe7ajuYxJTxEI=";
   }
 
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/html' && part.body?.data) {
-        return decodeBase64(part.body.data);
-      }
-      // Recursively check nested parts
-      if (part.parts) {
-        const nestedBody = getEmailBody(part);
-        if (nestedBody) return nestedBody;
-      }
-    }
-  }
+  const highlightText = (text, query) => {
+    if (!query || !text) return <Text>{text}</Text>;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <Text>
+        {parts.map((part, index) => (
+          part.toLowerCase() === query.toLowerCase() ? 
+            <Text key={index} style={styles.highlightedText}>{part}</Text> : 
+            part
+        ))}
+      </Text>
+    );
+  };
 
-  return ''; // Fallback if no HTML content is found
-};
-
-// Add this constant for letter-based avatar colors
-const LETTER_COLORS = {
-  'A': '#FF6B6B', // Coral Red
-  'B': '#4ECDC4', // Turquoise
-  'C': '#45B7D1', // Sky Blue
-  'D': '#96CEB4', // Sage Green
-  'E': '#FFEEAD', // Soft Yellow
-  'F': '#D4A5A5', // Dusty Rose
-  'G': '#FFD93D', // Bright Yellow
-  'H': '#6C5B7B', // Purple
-  'I': '#FF8C42', // Orange
-  'J': '#2AB7CA', // Cyan
-  'K': '#FE4A49', // Red
-  'L': '#A3DE83', // Light Green
-  'M': '#851E3E', // Burgundy
-  'N': '#4A90E2', // Blue
-  'O': '#F7A072', // Peach
-  'P': '#B5838D', // Mauve
-  'Q': '#E6B89C', // Tan
-  'R': '#9B5DE5', // Purple
-  'S': '#00BBF9', // Sky Blue
-  'T': '#00F5D4', // Turquoise
-  'U': '#FEE440', // Yellow
-  'V': '#9B89B3', // Lavender
-  'W': '#98C1D9', // Light Blue
-  'X': '#E56B6F', // Salmon
-  'Y': '#8860D0', // Purple
-  'Z': '#5AB9EA', // Blue
-};
-
-// Add this constant at the top of the file for company-specific styling
-const COMPANY_STYLES = {
-  'google.com': {
-    backgroundColor: '#fef7e0',
-    avatar: 'https://www.google.com/favicon.ico'
-  },
-  'gmail.com': {
-    backgroundColor: '#fef7e0',
-    avatar: 'https://www.gmail.com/favicon.ico'
-  },
-  'netflix.com': {
-    backgroundColor: '#e50914',
-    avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico'
-  },
-  'amazon.com': {
-    backgroundColor: '#ff9900',
-    avatar: 'https://www.amazon.com/favicon.ico'
-  },
-  'paypal.com': {
-    backgroundColor: '#003087',
-    avatar: 'https://www.paypal.com/favicon.ico'
-  },
-  'apple.com': {
-    backgroundColor: '#000000',
-    avatar: 'https://www.apple.com/favicon.ico'
-  },
-  'microsoft.com': {
-    backgroundColor: '#00a4ef',
-    avatar: 'https://www.microsoft.com/favicon.ico'
-  },
-  'facebook.com': {
-    backgroundColor: '#1877f2',
-    avatar: 'https://www.facebook.com/favicon.ico'
-  },
-  'twitter.com': {
-    backgroundColor: '#1da1f2',
-    avatar: 'https://www.twitter.com/favicon.ico'
-  },
-  'linkedin.com': {
-    backgroundColor: '#0a66c2',
-    avatar: 'https://www.linkedin.com/favicon.ico'
-  }
+  return (
+    <TouchableOpacity 
+      style={[styles.emailItem, !email.isRead && styles.unreadEmail]}
+      onPress={onPress}
+    >
+      <View style={[styles.senderIcon, { backgroundColor: email.color }]}>
+        {(typeof avatarSource === 'string') && avatarSource.startsWith('http') ? (
+          <Image 
+            source={{ uri: avatarSource }} 
+            style={{ width: 40, height: 40, borderRadius: 20 }}
+          />
+        ) : (
+          <Text style={styles.senderInitial}>{avatarSource}</Text>
+        )}
+      </View>
+      <View style={styles.emailContent}>
+        <Text style={[styles.senderName, !email.isRead && styles.unreadText]} numberOfLines={1}>
+          {highlightText(email.from || email.sender, searchQuery)}
+        </Text>
+        <View style={styles.subjectContainer}>
+          <Text style={[styles.subject, !email.isRead && styles.unreadText]} numberOfLines={1}>
+            {highlightText(email.subject, searchQuery)}
+          </Text>
+          <Text style={styles.preview} numberOfLines={1}>
+            - {highlightText(email.preview, searchQuery)}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.emailRight}>
+        <Text style={styles.time}>{email.time}</Text>
+        {email.isStarred && (
+          <Ionicons name="star" size={20} color="#f4b400" />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 };
 
 const MailBox = ({ route, navigation }) => {
@@ -149,7 +87,7 @@ const MailBox = ({ route, navigation }) => {
   const { emails: initialEmails } = route.params || {};
   const [emails, setEmails] = useState(initialEmails || []);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true); // New state for initial loading
 
   const debounce = (func, wait) => {
     let timeout;
@@ -195,32 +133,9 @@ const MailBox = ({ route, navigation }) => {
 
   const fuse = useMemo(() => new Fuse(emails, fuseOptions), [emails, selectedCategory]);
 
-  const fetchGoogleProfile = async (emailAddress) => {
-    try {
-      const tokens = await getGoogleToken();
-      const response = await fetch(
-        `https://people.googleapis.com/v1/people:searchContacts?query=${encodeURIComponent(emailAddress)}&readMask=photos`,
-        {
-          headers: {
-            Authorization: `Bearer ${tokens.accessToken}`,
-          },
-        }
-      );
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        const photo = data.results[0].person?.photos?.[0]?.url;
-        return photo || null;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error fetching Google profile:', error);
-      return null;
-    }
-  };
-
   const fetchEmails = useCallback(async () => {
     try {
-      const tokens = await getGoogleToken();
+      const tokens = await GoogleSignin.getTokens();
       const response = await fetch(
         'https://gmail.googleapis.com/gmail/v1/users/me/messages',
         {
@@ -233,38 +148,29 @@ const MailBox = ({ route, navigation }) => {
       
       const emailPromises = data.messages.map(async (message) => {
         const detailResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}?format=full`,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
           {
             headers: {
               Authorization: `Bearer ${tokens.accessToken}`,
             },
           }
         );
-        const emailData = await detailResponse.json();
-        const fromHeader = emailData.payload.headers.find(h => h.name === 'From')?.value || 'Unknown';
-        const senderEmail = fromHeader.match(/<(.+?)>/)?.[1] || fromHeader;
-
-        // Fetch Google profile avatar
-        const avatar = await fetchGoogleProfile(senderEmail);
-
-        // Extract HTML body
-        const htmlBody = getEmailBody(emailData.payload);
-
-        return {
-          id: emailData.id,
-          sender: fromHeader,
-          senderName: fromHeader.match(/^([^<]+)/)?.pop()?.trim() || fromHeader.split('@')[0],
-          from: senderEmail,
-          subject: emailData.payload.headers.find(h => h.name === 'Subject')?.value || '(no subject)',
-          preview: emailData.snippet || '',
-          body: htmlBody, // Add HTML body
-          time: new Date(parseInt(emailData.internalDate)).toLocaleTimeString(),
-          isStarred: emailData.labelIds?.includes('STARRED') || false,
-          isRead: !emailData.labelIds?.includes('UNREAD'),
-        };
+        return detailResponse.json();
       });
 
-      const formattedEmails = await Promise.all(emailPromises);
+      const emailDetails = await Promise.all(emailPromises);
+      const formattedEmails = emailDetails.map((email) => ({
+        id: email.id,
+        sender: email.payload.headers.find(h => h.name === 'From')?.value || 'Unknown',
+        subject: email.payload.headers.find(h => h.name === 'Subject')?.value || '(no subject)',
+        preview: email.snippet || '',
+        time: new Date(parseInt(email.internalDate)).toLocaleTimeString(),
+        isStarred: email.labelIds?.includes('STARRED') || false,
+        isRead: !email.labelIds?.includes('UNREAD'),
+        avatar: email.payload.headers.find(h => h.name === 'From')?.value.charAt(0) || '?',
+        color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+      }));
+      
       setEmails(formattedEmails);
       return formattedEmails;
     } catch (error) {
@@ -281,13 +187,6 @@ const MailBox = ({ route, navigation }) => {
     };
     loadEmails();
   }, [fetchEmails]);
-
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
-      offlineAccess: true,
-    });
-  }, []);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -321,8 +220,8 @@ const MailBox = ({ route, navigation }) => {
               email.subject || '',
               email.from || email.sender || '',
               email.preview || '',
-              email.body || '',
               email.time || '',
+              email.body || '',
               email.sender?.email || '',
               email.sender?.name || '',
               email.recipients?.join(' ') || '',
@@ -405,183 +304,6 @@ const MailBox = ({ route, navigation }) => {
   };
 
   const displayedEmails = isSearching ? searchResults : emails;
-
-  // Move the updateEmailReadStatus function inside MailBox component
-  const updateEmailReadStatus = async (emailId, markAsRead = true) => {
-    try {
-      const { accessToken } = await getGoogleToken();
-      
-      if (!accessToken) {
-        throw new Error('No access token available');
-      }
-
-      const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            removeLabelIds: markAsRead ? ['UNREAD'] : [],
-            addLabelIds: markAsRead ? [] : ['UNREAD'],
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('API Error Response:', data);
-        throw new Error(data.error?.message || 'Failed to update email status');
-      }
-
-      // Now setEmails is accessible
-      setEmails(currentEmails =>
-        currentEmails.map(email =>
-          email.id === emailId
-            ? { ...email, isRead: markAsRead }
-            : email
-        )
-      );
-
-      return true;
-    } catch (error) {
-      console.error('Error updating email read status:', error);
-      if (error.message.includes('401') || error.message.includes('invalid_token')) {
-        try {
-          await GoogleSignin.signInSilently();
-          return updateEmailReadStatus(emailId, markAsRead);
-        } catch (refreshError) {
-          console.error('Error refreshing token:', refreshError);
-        }
-      }
-      return false;
-    }
-  };
-
-  // Pass updateEmailReadStatus to EmailItem through props
-  const renderEmailItem = ({ item }) => {
-    const getAvatarAndColor = () => {
-      // Get the sender email and ensure it's a string
-      const senderEmail = String(item.from || item.sender || '');
-      const senderName = item.senderName || '';
-      
-      // Extract domain for company check
-      const domain = senderEmail.split('@')[1];
-      
-      // Check for company first
-      if (domain) {
-        const domainBase = domain.split('.').slice(-2).join('.');
-        const companyStyle = COMPANY_STYLES[domainBase];
-        if (companyStyle) {
-          return {
-            avatarSource: companyStyle.avatar,
-            backgroundColor: companyStyle.backgroundColor,
-            isLetter: false
-          };
-        }
-      }
-
-      // Get first word of sender's name and use its first letter
-      const firstWord = senderName.split(' ')[0];
-      const firstLetter = firstWord ? firstWord.charAt(0).toUpperCase() : '';
-
-      // If we have a valid letter, use it
-      if (firstLetter && firstLetter.match(/[A-Z]/)) {
-        return {
-          avatarSource: firstLetter,
-          backgroundColor: LETTER_COLORS[firstLetter],
-          isLetter: true
-        };
-      }
-
-      // Fallback case
-      return {
-        avatarSource: 'https://cdn-icons-png.flaticon.com/512/36/36183.png',
-        backgroundColor: '#e8eaed',
-        isLetter: false
-      };
-    };
-
-    const { avatarSource, backgroundColor, isLetter } = getAvatarAndColor();
-
-    const highlightText = (text, query) => {
-      if (!query || !text) return <Text>{text}</Text>;
-      const parts = text.split(new RegExp(`(${query})`, 'gi'));
-      return (
-        <Text>
-          {parts.map((part, index) => (
-            part.toLowerCase() === query.toLowerCase() ? 
-              <Text key={index} style={styles.highlightedText}>{part}</Text> : 
-              part
-          ))}
-        </Text>
-      );
-    };
-
-    const handlePress = async () => {
-      if (!item.isRead) {
-        const success = await updateEmailReadStatus(item.id, true);
-        if (!success) {
-          console.log('Failed to mark email as read');
-        }
-      }
-      navigation.navigate('EmailDetail', {
-        email: item,
-        onDelete: handleDeleteEmail,
-        onToggleStar: handleToggleStar,
-        avatarInfo: getAvatarAndColor()
-      });
-    };
-
-    return (
-      <TouchableOpacity 
-        style={[
-          styles.emailItem,
-          !item.isRead && styles.unreadEmail,
-        ]}
-        onPress={handlePress}
-      >
-        <View style={styles.emailLeftSection}>
-          {!item.isRead && <View style={styles.unreadDot} />}
-          <View style={[styles.senderIcon, { backgroundColor }]}>
-            {isLetter ? (
-              <Text style={styles.avatarLetter}>{avatarSource}</Text>
-            ) : typeof avatarSource === 'string' && avatarSource.startsWith('http') ? (
-              <Image 
-                source={{ uri: avatarSource }} 
-                style={styles.avatarImage}
-                defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
-              />
-            ) : (
-              <Ionicons name="person" size={24} color="white" />
-            )}
-          </View>
-        </View>
-        <View style={styles.emailContent}>
-          <Text style={[styles.senderName, !item.isRead && styles.unreadText]} numberOfLines={1}>
-            {highlightText(item.senderName || item.from, searchQuery)}
-          </Text>
-          <View style={styles.subjectContainer}>
-            <Text style={[styles.subject, !item.isRead && styles.unreadText]} numberOfLines={1}>
-              {highlightText(item.subject, searchQuery)}
-            </Text>
-            <Text style={styles.preview} numberOfLines={1}>
-              · {highlightText(item.preview, searchQuery)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.emailRight}>
-          <Text style={[styles.time, !item.isRead && styles.unreadText]}>{item.time}</Text>
-          {item.isStarred && (
-            <Ionicons name="star" size={20} color="#f4b400" style={styles.starIcon} />
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -676,7 +398,20 @@ const MailBox = ({ route, navigation }) => {
             displayedEmails.length > 0 ? (
               <FlatList
                 data={displayedEmails}
-                renderItem={renderEmailItem}
+                renderItem={({ item }) => (
+                  <EmailItem
+                    email={item}
+                    searchQuery={searchQuery}
+                    onPress={() => {
+                      setIsSearchFocused(false);
+                      navigation.navigate('EmailDetail', {
+                        email: item,
+                        onDelete: handleDeleteEmail,
+                        onToggleStar: handleToggleStar,
+                      });
+                    }}
+                  />
+                )}
                 keyExtractor={item => item.id}
                 style={styles.searchResultsList}
               />
@@ -701,7 +436,17 @@ const MailBox = ({ route, navigation }) => {
       {!isSearchFocused && !isInitialLoading && (
         <FlatList
           data={displayedEmails}
-          renderItem={renderEmailItem}
+          renderItem={({ item }) => (
+            <EmailItem
+              email={item}
+              searchQuery={searchQuery}
+              onPress={() => navigation.navigate('EmailDetail', {
+                email: item,
+                onDelete: handleDeleteEmail,
+                onToggleStar: handleToggleStar,
+              })}
+            />
+          )}
           keyExtractor={item => item.id}
           ListEmptyComponent={
             !isSearchLoading && (
@@ -731,131 +476,119 @@ const MailBox = ({ route, navigation }) => {
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 0,
-    elevation: 0,
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
+    backgroundColor: '#fff',
+    elevation: 2,
     zIndex: 1001,
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 28,
-    marginHorizontal: 8,
+    backgroundColor: '#f1f3f4',
+    borderRadius: 24,
+    marginHorizontal: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 0,
+    paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
     fontSize: 16,
-    color: '#1f2937',
-    fontWeight: '400',
+    color: '#202124',
   },
   emailItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 8,
-    marginVertical: 4,
-    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
   },
-  unreadEmail: {
-    backgroundColor: '#f8fafd', // Lighter blue tint for unread emails
-  },
-  emailLeftSection: {
-    flexDirection: 'row',
+  senderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#1a73e8',
-    marginRight: 8,
-  },
-  senderIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  senderInitial: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   emailContent: {
     flex: 1,
+    marginRight: 16,
   },
   senderName: {
-    fontSize: 15,
+    fontSize: 14,
     marginBottom: 4,
-    color: '#1f2937',
-  },
-  unreadText: {
     color: '#202124',
-    fontWeight: '600', // Make unread text slightly bolder
+  },
+  subjectContainer: {
+    flexDirection: 'row',
+    flex: 1,
   },
   subject: {
     fontSize: 14,
-    color: '#4b5563',
+    color: '#5f6368',
   },
   preview: {
     fontSize: 14,
-    color: '#6b7280',
-    marginLeft: 4,
+    color: '#5f6368',
+    flex: 1,
+  },
+  emailRight: {
+    alignItems: 'flex-end',
   },
   time: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 6,
+    fontSize: 12,
+    color: '#5f6368',
+    marginBottom: 4,
+  },
+  unreadEmail: {
+    backgroundColor: '#f2f6fc',
+  },
+  unreadText: {
+    color: '#202124',
+    fontWeight: '600',
   },
   fab: {
     position: 'absolute',
     right: 16,
-    bottom: 24,
-    backgroundColor: '#2563eb',
+    bottom: 16,
+    backgroundColor: '#1a73e8',
     borderRadius: 28,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  aiIcon: {
+    marginRight: 8,
   },
   fabText: {
-    color: '#ffffff',
+    color: 'white',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    margin: 4,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
-  },
-  selectedCategoryChip: {
-    backgroundColor: '#e0e7ff',
-  },
-  starIcon: {
-    marginTop: 4,
+    fontWeight: '500',
   },
   noEmailsContainer: {
     flex: 1,
@@ -901,14 +634,14 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     margin: 4,
-    borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    backgroundColor: '#f1f3f4',
   },
   selectedCategoryChip: {
-    backgroundColor: '#e0e7ff',
+    backgroundColor: '#e8f0fe',
   },
   categoryChipText: {
     marginLeft: 6,
@@ -992,17 +725,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  avatarLetter: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    resizeMode: 'cover'
-  }
 });
 
 export default MailBox;

@@ -16,7 +16,7 @@ const Tab = createBottomTabNavigator();
 function HomeTabs({ route }) {
   // console.log(route)
   // Get the user data from the route params
-  const { user, emails } = route.params || {};
+  const { user } = route.params || {};
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -39,7 +39,7 @@ function HomeTabs({ route }) {
       <Tab.Screen 
         name="Mail" 
         component={MailBox}
-        initialParams={{ user, emails }}
+        initialParams={{ user }}
       />
       <Tab.Screen 
         name="Profile" 
