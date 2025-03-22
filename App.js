@@ -9,7 +9,6 @@ import GoogleAuth from './screens/GoogleAuth';
 import Profile from './screens/Profile';
 import MailBox from './screens/MailBox';
 import EmailDetail from './screens/EmailDetail';
-
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 

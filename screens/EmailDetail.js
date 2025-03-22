@@ -13,6 +13,7 @@ import {
   Platform,
   StatusBar,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
@@ -22,6 +23,7 @@ const EmailDetail = ({ route, navigation }) => {
   const [isStarred, setIsStarred] = useState(email.isStarred);
   const [showFullHeader, setShowFullHeader] = useState(false);
   const [webViewHeight, setWebViewHeight] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Animation for header
   const scrollY = new Animated.Value(0);
@@ -84,7 +86,21 @@ const EmailDetail = ({ route, navigation }) => {
     });
   }, [emailId, isStarred, navigation]);
 
+  const onWebViewMessage = (event) => {
+    setWebViewHeight(parseInt(event.nativeEvent.data));
+    setIsLoading(false);
+  };
+
+  const handleWebViewLoadStart = () => {
+    setIsLoading(true);
+  };
+
+  const handleWebViewLoadEnd = () => {
+    setIsLoading(false);
+  };
+
   // HTML template for WebView
+  console.log(email)
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -140,10 +156,6 @@ const EmailDetail = ({ route, navigation }) => {
     </html>
   `;
 
-  const onWebViewMessage = (event) => {
-    setWebViewHeight(parseInt(event.nativeEvent.data));
-  };
-
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -175,7 +187,7 @@ const EmailDetail = ({ route, navigation }) => {
       <ScrollView
         style={styles.content}
         onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          [{ nativeEvent: { contentOffset: { y: scrollY }} }],
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
@@ -243,10 +255,12 @@ const EmailDetail = ({ route, navigation }) => {
           </View>
         )}
 
-        <View style={[styles.emailBody, { height: webViewHeight }]}>
+        <View style={[styles.emailBody, { height: webViewHeight || 'auto' }]}>
           <WebView
             source={{ html: htmlContent }}
             onMessage={onWebViewMessage}
+            onLoadStart={handleWebViewLoadStart}
+            onLoadEnd={handleWebViewLoadEnd}
             scrollEnabled={false}
             injectedJavaScript={`
               window.ReactNativeWebView.postMessage(
@@ -259,6 +273,12 @@ const EmailDetail = ({ route, navigation }) => {
             `}
             style={styles.webView}
           />
+          {isLoading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#1a73e8" />
+              <Text style={styles.loadingText}>Loading email content...</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -398,31 +418,26 @@ const styles = StyleSheet.create({
   emailBody: {
     width: '100%',
     backgroundColor: '#ffffff',
+    position: 'relative',
   },
   webView: {
     backgroundColor: 'transparent',
     width: '100%',
   },
-  text: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#202124',
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  htmlBody: {
+  loadingText: {
+    marginTop: 10,
     fontSize: 16,
-    lineHeight: 24,
-    color: '#202124',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-  },
-  paragraph: {
-    marginVertical: 8,
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#202124',
-  },
-  link: {
-    color: '#1a73e8',
-    textDecorationLine: 'underline',
+    color: '#5f6368',
   },
   bottomBar: {
     flexDirection: 'row',
