@@ -159,9 +159,17 @@ const GoogleAuth = () => {
       // const emailData = await fetchEmails(tokens.accessToken);
       // console.log(emailData)
       // Navigate to HomeTabs with both user and email data
-      navigation.navigate('HomeTabs', {
-        user: userCredential.user,
-        // emails: emailData
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'HomeTabs',
+            params: {
+              user: userCredential.user,
+              // emails: emailData,
+            },
+          },
+        ],
       });
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -257,7 +265,7 @@ const GoogleAuth = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fef9f3',
     justifyContent: 'space-between',
     paddingTop: 60,
     paddingBottom: 40,
@@ -269,7 +277,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    backgroundColor: '#4285F4',
+    backgroundColor: '#27160a',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
@@ -286,7 +294,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#27160a',
     marginBottom: 16,
     textAlign: 'center',
   },
@@ -305,7 +313,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffdbc1',
     borderRadius: 15,
     padding: 16,
     marginBottom: 24,
@@ -315,8 +323,8 @@ const styles = StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 0,
+    elevation: 7,
   },
   googleIcon: {
     width: 24,
@@ -330,7 +338,7 @@ const styles = StyleSheet.create({
   },
   termsText: {
     fontSize: 14,
-    color: '#666666',
+    color: '#27160a',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -357,7 +365,7 @@ const styles = StyleSheet.create({
   },
   slideDescription: {
     fontSize: 16,
-    color: '#666666',
+    color: '#27160a',
     textAlign: 'center',
     lineHeight: 24,
   },

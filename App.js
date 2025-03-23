@@ -30,9 +30,12 @@ function HomeTabs({ route }) {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#1a73e8',
-        tabBarInactiveTintColor: 'gray',
+        tabBarActiveTintColor: '#2d1505',
+        tabBarInactiveTintColor: '#2d1505',
         headerShown: false,
+        tabBarStyle: {
+          backgroundColor: '#fdeadc', // Added tab bar background color
+        },
       })}
     >
       <Tab.Screen 

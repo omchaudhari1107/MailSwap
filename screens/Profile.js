@@ -99,10 +99,10 @@ const Profile = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fef9f3',
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: '#fef9f3',
     alignItems: 'center',
     padding: 20,
     paddingTop: 40,
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 100,
     borderWidth: 6,
-    borderColor: '#1a73e8',
+    borderColor: 'transparent',
   },
   editIconContainer: {
     position: 'absolute',
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#fae5d3',
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 12,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#202124',
+    color: '#211a15',
     marginBottom: 16,
   },
   sectionContainer: {
@@ -180,13 +180,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f3f4',
+    borderBottomColor: '#211a15',
   },
   sectionIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#e8f0fe',
+    backgroundColor: '#fef9f3',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     flexDirection: 'row',
-    backgroundColor: '#db4437',
+    backgroundColor: '#ffdbc1',
     marginHorizontal: 16,
     marginTop: 24,
     marginBottom: 16,
@@ -213,12 +213,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    elevation:
+      5,
   },
   signOutIcon: {
     marginRight: 8,
+    color: '#291609',
   },
   signOutText: {
-    color: '#fff',
+    color: '#291609',
     fontSize: 16,
     fontWeight: '600',
   },
