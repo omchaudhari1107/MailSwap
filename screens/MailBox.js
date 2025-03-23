@@ -213,7 +213,7 @@ const LETTER_COLORS = {
 // Constants for company-specific styling
 const COMPANY_STYLES = {
   'google.com': { backgroundColor: '#fef7e0', avatar: 'https://www.google.com/favicon.ico' },
-  'gmail.com': { backgroundColor: '#fef7e0', avatar: 'https://www.gmail.com/favicon.ico' },
+  // 'gmail.com': { backgroundColor: '#fef7e0', avatar: 'https://www.gmail.com/favicon.ico' },
   'netflix.com': { backgroundColor: '#e50914', avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico' },
   'amazon.com': { backgroundColor: '#ff9900', avatar: 'https://www.amazon.com/favicon.ico' },
   'paypal.com': { backgroundColor: '#003087', avatar: 'https://www.paypal.com/favicon.ico' },
@@ -353,6 +353,15 @@ const MailBox = ({ route, navigation }) => {
           time: new Date(parseInt(emailData.internalDate)).toLocaleTimeString(),
           isStarred: emailData.labelIds?.includes('STARRED') || false,
           isRead: !emailData.labelIds?.includes('UNREAD'),
+          attachments: emailData.payload.parts ? emailData.payload.parts
+            .filter(part => part.filename || part.mimeType.startsWith('application/') || part.mimeType.startsWith('audio/') || part.mimeType.startsWith('video/') || part.mimeType.startsWith('image/'))
+            .map(part => ({
+              filename: part.filename || 'unnamed-attachment',
+              mimeType: part.mimeType,
+              attachmentId: part.body.attachmentId,
+              size: part.body.size,
+              data: part.body.data,
+            })) : [],
         };
       });
 
@@ -586,7 +595,7 @@ const MailBox = ({ route, navigation }) => {
   const renderEmailItem = ({ item }) => {
     const getAvatarAndColor = () => {
       const senderEmail = String(item.from || item.sender || '');
-      const senderName = item.senderName || '';
+      const senderName = item.senderName || senderEmail.split('@')[0] || '';
       const domain = senderEmail.split('@')[1];
       if (domain) {
         const domainBase = domain.split('.').slice(-2).join('.');
@@ -600,18 +609,23 @@ const MailBox = ({ route, navigation }) => {
         }
       }
 
+      // Extract the first letter from the sender's name
       const firstWord = senderName.split(' ')[0];
-      const firstLetter = firstWord ? firstWord.charAt(0).toUpperCase() : '';
+      const firstLetter = firstWord[0].toUpperCase();
+
+      // If the first letter is a valid letter, use the letter-based avatar
       if (firstLetter && firstLetter.match(/[a-zA-Z]/)) {
+        const color = LETTER_COLORS[firstLetter] || '#D3D3D3'; // Fallback color
         return {
           avatarSource: firstLetter,
-          backgroundColor: LETTER_COLORS[firstLetter],
+          backgroundColor: color,
           isLetter: true,
         };
       }
 
       return {
         avatarSource: 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png',
+        backgroundColor: '#D3D3D3',
         isLetter: false,
       };
     };
@@ -652,7 +666,10 @@ const MailBox = ({ route, navigation }) => {
         }
       }
       navigation.navigate('EmailDetail', {
-        email: item,
+        email: {
+          ...item,
+          attachments: item.attachments || [],
+        },
         onDelete: handleDeleteEmail,
         onToggleStar: handleToggleStar,
         avatarInfo: getAvatarAndColor(),

@@ -14,12 +14,50 @@ import {
   StatusBar,
   Linking,
   ActivityIndicator,
+  PermissionsAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import RNFS from 'react-native-fs';
+
+const getGoogleToken = async () => {
+  try {
+    const tokens = await GoogleSignin.getTokens();
+    return tokens;
+  } catch (error) {
+    console.error('Error getting Google token:', error);
+    throw error;
+  }
+};
+
+// Request storage permissions for Android
+const requestStoragePermission = async () => {
+  if (Platform.OS !== 'android') return true;
+
+  try {
+    const granted = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+    ]);
+
+    if (
+      granted['android.permission.READ_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED &&
+      granted['android.permission.WRITE_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED
+    ) {
+      return true;
+    } else {
+      Alert.alert('Permission Denied', 'Storage permission is required to save and open attachments.');
+      return false;
+    }
+  } catch (err) {
+    console.warn('Error requesting storage permission:', err);
+    return false;
+  }
+};
 
 const EmailDetail = ({ route, navigation }) => {
-  const { email, emailId, avatarInfo } = route.params;
+  const { email, avatarInfo } = route.params;
   const [isStarred, setIsStarred] = useState(email.isStarred);
   const [showFullHeader, setShowFullHeader] = useState(false);
   const [webViewHeight, setWebViewHeight] = useState(0);
@@ -35,32 +73,32 @@ const EmailDetail = ({ route, navigation }) => {
 
   const handleDelete = useCallback(() => {
     Alert.alert(
-      "Delete Email",
-      "Are you sure you want to delete this email?",
+      'Delete Email',
+      'Are you sure you want to delete this email?',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Delete",
-          style: "destructive",
+          text: 'Delete',
+          style: 'destructive',
           onPress: () => {
-            navigation.navigate('MailBox', { 
+            navigation.navigate('MailBox', {
               action: 'delete',
-              emailId: emailId
+              emailId: email.id,
             });
           },
         },
       ]
     );
-  }, [emailId, navigation]);
+  }, [email.id, navigation]);
 
   const handleArchive = useCallback(() => {
     Alert.alert(
-      "Archive Email",
-      "Archive this conversation?",
+      'Archive Email',
+      'Archive this conversation?',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Archive",
+          text: 'Archive',
           onPress: () => navigation.goBack(),
         },
       ]
@@ -78,17 +116,111 @@ const EmailDetail = ({ route, navigation }) => {
   }, [email]);
 
   const handleToggleStar = useCallback(() => {
-    setIsStarred(prev => !prev);
+    setIsStarred((prev) => !prev);
     navigation.navigate('MailBox', {
       action: 'toggleStar',
-      emailId: emailId,
-      isStarred: !isStarred
+      emailId: email.id,
+      isStarred: !isStarred,
     });
-  }, [emailId, isStarred, navigation]);
+  }, [email.id, isStarred, navigation]);
 
-  const onWebViewMessage = (event) => {
-    setWebViewHeight(parseInt(event.nativeEvent.data));
-    setIsLoading(false);
+  const handleWebViewMessage = useCallback((event) => {
+    const data = event.nativeEvent.data;
+    if (!isNaN(data)) {
+      // Handle height update
+      setWebViewHeight(parseInt(data));
+      setIsLoading(false);
+    } else {
+      // Handle attachment click
+      try {
+        const message = JSON.parse(data);
+        if (message.type === 'openAttachment') {
+          const { mimeType, data, filename, attachmentId } = message;
+          handleAttachmentClick(mimeType, data, filename, attachmentId);
+        }
+      } catch (error) {
+        console.error('Error parsing WebView message:', error);
+      }
+    }
+  }, []);
+
+  const handleAttachmentClick = async (mimeType, base64Data, filename, attachmentId) => {
+    try {
+      // Request storage permissions
+      const hasPermission = await requestStoragePermission();
+      if (!hasPermission) return;
+
+      let filePath;
+
+      // Determine file extension based on MIME type
+      const extensionMap = {
+        'application/pdf': '.pdf',
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/gif': '.gif',
+        'audio/mpeg': '.mp3',
+        'audio/wav': '.wav',
+        'video/mp4': '.mp4',
+        'video/quicktime': '.mov',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        // Add more MIME types as needed
+      };
+      const extension = extensionMap[mimeType] || '.bin';
+      const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_') || 'attachment';
+      const tempFileName = `${sanitizedFilename}${extension}`;
+
+      // Use TemporaryDirectoryPath for iOS and Android
+      const tempDir = RNFS.TemporaryDirectoryPath;
+      filePath = `${tempDir}/${tempFileName}`;
+
+      if (base64Data) {
+        // Write Base64 data to a temporary file
+        await RNFS.writeFile(filePath, base64Data, 'base64');
+      } else if (attachmentId && email.id) {
+        // Fetch attachment from Gmail API
+        const tokens = await getGoogleToken();
+        const response = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${email.id}/attachments/${attachmentId}`,
+          {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+          }
+        );
+        const attachmentData = await response.json();
+        const decodedData = attachmentData.data; // Base64url encoded
+        const base64Content = decodedData.replace(/-/g, '+').replace(/_/g, '/');
+        await RNFS.writeFile(filePath, base64Content, 'base64');
+      } else {
+        Alert.alert('Error', 'No attachment data available.');
+        return;
+      }
+
+      console.log('File written to:', filePath);
+
+      // Create file URI
+      const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
+
+      // First, try Linking.openURL
+      const supported = await Linking.canOpenURL(fileUri);
+      if (supported) {
+        console.log('Attempting to open URI:', fileUri);
+        await Linking.openURL(fileUri);
+      } else {
+        console.log('Linking.openURL not supported, falling back to Share.share');
+        // Fallback to Share.share, which often triggers the "Open with" dialog on Android
+        await Share.share({
+          url: fileUri,
+          title: 'Open with',
+          mimeType: mimeType,
+        });
+      }
+
+      // Clean up the temporary file (optional)
+      // await RNFS.unlink(filePath);
+    } catch (error) {
+      console.error('Error opening attachment:', error);
+      Alert.alert('Error', 'Failed to open attachment: ' + error.message);
+    }
   };
 
   const handleWebViewLoadStart = () => {
@@ -100,7 +232,6 @@ const EmailDetail = ({ route, navigation }) => {
   };
 
   // HTML template for WebView
-  console.log(email)
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -137,12 +268,35 @@ const EmailDetail = ({ route, navigation }) => {
             padding-left: 16px;
             color: #5f6368;
           }
+          .attachment-container {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+          }
+          .attachment-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 5px 0;
+            cursor: pointer;
+          }
+          .attachment-icon {
+            font-size: 32px;
+            margin-right: 10px;
+          }
+          .attachment-name {
+            font-size: 14px;
+            word-break: break-word;
+          }
+          .attachment-size {
+            font-size: 12px;
+            color: #666;
+          }
         </style>
       </head>
       <body>
         ${email.body || '<p>No content available</p>'}
         <script>
-          // Send height to React Native
           window.onload = function() {
             window.ReactNativeWebView.postMessage(
               Math.max(
@@ -187,7 +341,7 @@ const EmailDetail = ({ route, navigation }) => {
       <ScrollView
         style={styles.content}
         onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY }} }],
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
@@ -200,8 +354,8 @@ const EmailDetail = ({ route, navigation }) => {
               {avatarInfo.isLetter ? (
                 <Text style={styles.avatarText}>{avatarInfo.avatarSource}</Text>
               ) : typeof avatarInfo.avatarSource === 'string' && avatarInfo.avatarSource.startsWith('http') ? (
-                <Image 
-                  source={{ uri: avatarInfo.avatarSource }} 
+                <Image
+                  source={{ uri: avatarInfo.avatarSource }}
                   style={styles.avatarImage}
                   defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
                 />
@@ -214,19 +368,19 @@ const EmailDetail = ({ route, navigation }) => {
                 <Text style={styles.senderName}>{email.sender}</Text>
                 <TouchableOpacity onPress={handleToggleStar}>
                   <Ionicons
-                    name={isStarred ? "star" : "star-outline"}
+                    name={isStarred ? 'star' : 'star-outline'}
                     size={22}
-                    color={isStarred ? "#f4b400" : "#5f6368"}
+                    color={isStarred ? '#f4b400' : '#5f6368'}
                   />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.recipientInfo}
                 onPress={() => setShowFullHeader(!showFullHeader)}
               >
                 <Text style={styles.recipientText}>to me</Text>
                 <Ionicons
-                  name={showFullHeader ? "chevron-up" : "chevron-down"}
+                  name={showFullHeader ? 'chevron-up' : 'chevron-down'}
                   size={16}
                   color="#5f6368"
                   style={styles.expandIcon}
@@ -234,7 +388,7 @@ const EmailDetail = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
           </View>
-          
+
           <Text style={styles.timeText}>{email.time}</Text>
         </View>
 
@@ -258,7 +412,7 @@ const EmailDetail = ({ route, navigation }) => {
         <View style={[styles.emailBody, { height: webViewHeight || 'auto' }]}>
           <WebView
             source={{ html: htmlContent }}
-            onMessage={onWebViewMessage}
+            onMessage={handleWebViewMessage}
             onLoadStart={handleWebViewLoadStart}
             onLoadEnd={handleWebViewLoadEnd}
             scrollEnabled={false}
