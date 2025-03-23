@@ -47,34 +47,46 @@ const GoogleAuth = () => {
   const [emails, setEmails] = useState([]);
 
   useEffect(() => {
+    // Configure Google Sign-In
     GoogleSignin.configure({
       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
-      scopes: [
-        // 'https://www.googleapis.com/auth/userinfo.email',
-        // 'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.modify',  // Add Gmail scope
-      ],
+      scopes: ['https://www.googleapis.com/auth/gmail.modify'],
       offlineAccess: true,
     });
 
-    // Add check for existing user
-    const checkCurrentUser = () => {
+    // Check if user is already logged in
+    const checkAuthStatus = async () => {
       try {
-        const isSignedIn = GoogleSignin.hasPreviousSignIn();
+        // Check if Google Sign-In has a previous session
+        const isSignedIn = await GoogleSignin.hasPreviousSignIn();
         if (isSignedIn) {
-          const currentUser = GoogleSignin.getCurrentUser();
+          // Get current user from Google Sign-In
+          const currentUser = await GoogleSignin.getCurrentUser();
           if (currentUser) {
-            navigation.navigate('HomeTabs', {
-                user: currentUser.user
+            // Reset navigation stack and go to HomeTabs
+            navigation.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'HomeTabs',
+                  params: {
+                    user: currentUser.user,
+                  },
+                },
+              ],
             });
           }
         }
+        // If not signed in, stay on login screen (no action needed)
       } catch (error) {
-        console.error('Error checking current user:', error);
+        console.error('Error checking authentication status:', error);
+        // Stay on login screen if there's an error
       }
     };
 
-    checkCurrentUser();
+    checkAuthStatus();
+
+    // No cleanup needed here since we're not subscribing to ongoing events
   }, [navigation]);
 
   // Auto slide functionality
@@ -83,69 +95,20 @@ const GoogleAuth = () => {
       if (activeSlide < slides.length - 1) {
         scrollViewRef.current?.scrollTo({
           x: (activeSlide + 1) * (width - 48),
-          animated: true
+          animated: true,
         });
         setActiveSlide(activeSlide + 1);
       } else {
         scrollViewRef.current?.scrollTo({
           x: 0,
-          animated: true
+          animated: true,
         });
         setActiveSlide(0);
       }
-    }, 1500); // Change slide every 3 seconds
+    }, 1500); // Change slide every 1.5 seconds
 
-    return () => clearInterval(slideInterval);
+    return () => clearInterval(slideInterval); // Cleanup interval on unmount
   }, [activeSlide]);
-
-  // const fetchEmails = async (accessToken) => {
-  //   try {
-  //     const response = await fetch(
-  //       'https://gmail.googleapis.com/gmail/v1/users/me/messages',
-  //       {
-  //         headers: {
-  //           Authorization: `Bearer ${accessToken}`,
-  //         },
-  //       }
-  //     );
-  //     const data = await response.json();
-      
-  //     // Fetch detailed information for each email
-  //     const emailPromises = data.messages.map(async (message) => {
-  //       const detailResponse = await fetch(
-  //         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
-  //         {
-  //           headers: {
-  //             Authorization: `Bearer ${accessToken}`,
-  //           },
-  //         }
-  //       );
-  //       return detailResponse.json();
-  //     });
-
-  //     const emailDetails = await Promise.all(emailPromises);
-  //     // console.log(emailDetails["payload"]);
-  //     const formattedEmails = emailDetails.map((email) => ({
-  //       id: email.id,
-  //       sender: email.payload.headers.find(h => h.name === 'From')?.value || 'Unknown',
-  //       subject: email.payload.headers.find(h => h.name === 'Subject')?.value || '(no subject)',
-  //       preview: email.snippet || '',
-  //       time: new Date(parseInt(email.internalDate)).toLocaleTimeString(),
-  //       isStarred: email.labelIds?.includes('STARRED') || false,
-  //       isRead: !email.labelIds?.includes('UNREAD'),
-  //       avatar: email.payload.headers.find(h => h.name === 'From')?.value.charAt(0) || '?',
-  //       color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
-  //     }));
-  //     // console.log('Total Emails:', emailDetails.length);
-  //     // emailDetails.forEach((email, index) => {
-  //     //   console.log(`LOG Email ${index + 1}:`, JSON.stringify(email, null, 2));
-  //     // });
-  //     return formattedEmails;
-  //   } catch (error) {
-  //     console.error('Error fetching emails:', error);
-  //     return [];
-  //   }
-  // };
 
   const signIn = async () => {
     try {
@@ -154,11 +117,8 @@ const GoogleAuth = () => {
       const tokens = await GoogleSignin.getTokens();
       const credential = GoogleAuthProvider.credential(tokens.idToken);
       const userCredential = await signInWithCredential(auth, credential);
-      
-      // Fetch emails after successful sign-in
-      // const emailData = await fetchEmails(tokens.accessToken);
-      // console.log(emailData)
-      // Navigate to HomeTabs with both user and email data
+
+      // Navigate to HomeTabs with reset
       navigation.reset({
         index: 0,
         routes: [
@@ -166,7 +126,6 @@ const GoogleAuth = () => {
             name: 'HomeTabs',
             params: {
               user: userCredential.user,
-              // emails: emailData,
             },
           },
         ],
@@ -225,19 +184,6 @@ const GoogleAuth = () => {
               </View>
             ))}
           </ScrollView>
-          
-          {/* Dots Indicator */}
-          {/* <View style={styles.pagination}>
-            {slides.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.paginationDot,
-                  { backgroundColor: index === activeSlide ? '#4285F4' : '#ccc' }
-                ]}
-              />
-            ))}
-          </View> */}
         </View>
       </View>
 
@@ -298,14 +244,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
-    paddingHorizontal: 20,
-  },
   bottomContainer: {
     paddingHorizontal: 24,
   },
@@ -348,7 +286,6 @@ const styles = StyleSheet.create({
   },
   sliderContainer: {
     height: 400,
-    // marginBottom: 10,
   },
   slide: {
     width: width - 48, // Accounting for padding
@@ -368,18 +305,6 @@ const styles = StyleSheet.create({
     color: '#27160a',
     textAlign: 'center',
     lineHeight: 24,
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
   },
 });
 

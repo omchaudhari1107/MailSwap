@@ -610,6 +610,7 @@ const MailBox = ({ route, navigation }) => {
         Keyboard.dismiss();
         return true;
       }
+      // BackHandler.exitApp();
       return false;
     });
 
