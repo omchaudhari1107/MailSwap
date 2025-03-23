@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -13,6 +13,7 @@ import {
   Keyboard,
   RefreshControl,
   Alert,
+  Animated, // Added for pulsing animation
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
@@ -236,6 +237,36 @@ const MailBox = ({ route, navigation }) => {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [selectedEmails, setSelectedEmails] = useState(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  // Animation state for pulsing skeleton
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  // Start the pulsing animation
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+
+    return () => pulse.stop();
+  }, [pulseAnim]);
+
+  // Interpolate opacity for pulsing effect
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.4, 0.8], // Adjust range for desired effect
+  });
 
   // Debounce function for search
   const debounce = (func, wait) => {
@@ -681,14 +712,34 @@ const MailBox = ({ route, navigation }) => {
   const renderSkeletonItem = () => (
     <View style={styles.emailItem}>
       <View style={styles.emailLeftSection}>
-        <View style={[styles.senderIcon, { backgroundColor: '#e0e0e0' }]} />
+        <Animated.View
+          style={[
+            styles.senderIcon,
+            { backgroundColor: '#e0e0e0', opacity: pulseOpacity },
+          ]}
+        />
       </View>
       <View style={styles.emailContent}>
-        <View style={[styles.skeletonText, { width: '60%', height: 16, marginBottom: 4 }]} />
-        <View style={[styles.skeletonText, { width: '80%', height: 14 }]} />
+        <Animated.View
+          style={[
+            styles.skeletonText,
+            { width: '60%', height: 16, marginBottom: 4, opacity: pulseOpacity },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.skeletonText,
+            { width: '80%', height: 14, opacity: pulseOpacity },
+          ]}
+        />
       </View>
       <View style={styles.emailRight}>
-        <View style={[styles.skeletonText, { width: 40, height: 13 }]} />
+        <Animated.View
+          style={[
+            styles.skeletonText,
+            { width: 40, height: 13, opacity: pulseOpacity },
+          ]}
+        />
       </View>
     </View>
   );
@@ -814,7 +865,6 @@ const MailBox = ({ route, navigation }) => {
                   ) : (
                     <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
                   )}
-                  
                 </View>
               </>
             )}
@@ -835,9 +885,9 @@ const MailBox = ({ route, navigation }) => {
               {highlightText(item.subject, searchQuery)}
             </Text>
           </View>
-            <Text style={styles.preview} numberOfLines={1}>
+          <Text style={styles.preview} numberOfLines={1}>
             {highlightText(item.preview, searchQuery)}
-            </Text>
+          </Text>
         </View>
         <View style={styles.emailRight}>
           <Text style={[styles.time, !item.isRead && styles.unreadText]}>{item.time}</Text>
@@ -1049,7 +1099,7 @@ const MailBox = ({ route, navigation }) => {
 
           {(isSearchLoading || isInitialLoading) && (
             <FlatList
-              data={[1, 2, 3, 4, 5 ]}
+              data={[1, 2, 3, 4, 5]}
               renderItem={renderSkeletonItem}
               keyExtractor={(item) => item.toString()}
               style={styles.searchResultsList}
@@ -1060,7 +1110,7 @@ const MailBox = ({ route, navigation }) => {
 
       {!isSearchFocused && (
         <FlatList
-          data={isInitialLoading ? [1, 2, 3, 4, 5, 6,7,8] : displayedEmails}
+          data={isInitialLoading ? [1, 2, 3, 4, 5, 6, 7, 8] : displayedEmails}
           renderItem={isInitialLoading ? renderSkeletonItem : renderEmailItem}
           keyExtractor={(item) => (isInitialLoading ? item.toString() : item.id)}
           ListHeaderComponent={renderListHeader()}
@@ -1141,13 +1191,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#1a73e8',
-    // marginRight: 8,
   },
   senderIcon: {
     width: 48,
@@ -1387,7 +1430,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    // left: 12,
     zIndex: 1,
   },
   checkboxSelected: {
@@ -1408,5 +1450,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
 });
+
+
 
 export default MailBox;
