@@ -13,7 +13,7 @@ import {
   Keyboard,
   RefreshControl,
   Alert,
-  Animated, // Added for pulsing animation
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
@@ -238,34 +238,56 @@ const MailBox = ({ route, navigation }) => {
   const [selectedEmails, setSelectedEmails] = useState(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // Animation state for pulsing skeleton
+  // Animation states
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Start the pulsing animation
+  // Animation effect for skeleton
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1.05,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(pulseAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
       ])
     );
-    pulse.start();
-
+    
+    if (isRefreshing || isInitialLoading) {
+      pulse.start();
+    }
+    
     return () => pulse.stop();
-  }, [pulseAnim]);
+  }, [pulseAnim, scaleAnim, isRefreshing, isInitialLoading]);
 
-  // Interpolate opacity for pulsing effect
   const pulseOpacity = pulseAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.4, 0.8], // Adjust range for desired effect
+    outputRange: [0.5, 0.9],
+  });
+
+  const pulseScale = scaleAnim.interpolate({
+    inputRange: [1, 1.05],
+    outputRange: [1, 1.05],
   });
 
   // Debounce function for search
@@ -465,9 +487,7 @@ const MailBox = ({ route, navigation }) => {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    setIsInitialLoading(true);
     await fetchEmails();
-    setIsInitialLoading(false);
     setIsRefreshing(false);
   }, [fetchEmails]);
 
@@ -710,7 +730,15 @@ const MailBox = ({ route, navigation }) => {
   };
 
   const renderSkeletonItem = () => (
-    <View style={styles.emailItem}>
+    <Animated.View
+      style={[
+        styles.emailItem,
+        {
+          opacity: pulseOpacity,
+          transform: [{ scale: pulseScale }],
+        },
+      ]}
+    >
       <View style={styles.emailLeftSection}>
         <Animated.View
           style={[
@@ -723,13 +751,13 @@ const MailBox = ({ route, navigation }) => {
         <Animated.View
           style={[
             styles.skeletonText,
-            { width: '60%', height: 16, marginBottom: 4, opacity: pulseOpacity },
+            { width: `${Math.random() * 30 + 50}%`, height: 16, marginBottom: 4, opacity: pulseOpacity },
           ]}
         />
         <Animated.View
           style={[
             styles.skeletonText,
-            { width: '80%', height: 14, opacity: pulseOpacity },
+            { width: `${Math.random() * 40 + 40}%`, height: 14, opacity: pulseOpacity },
           ]}
         />
       </View>
@@ -741,7 +769,7 @@ const MailBox = ({ route, navigation }) => {
           ]}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 
   const renderEmailItem = ({ item, index }) => {
@@ -1110,12 +1138,12 @@ const MailBox = ({ route, navigation }) => {
 
       {!isSearchFocused && (
         <FlatList
-          data={isInitialLoading ? [1, 2, 3, 4, 5, 6, 7, 8] : displayedEmails}
-          renderItem={isInitialLoading ? renderSkeletonItem : renderEmailItem}
-          keyExtractor={(item) => (isInitialLoading ? item.toString() : item.id)}
+          data={(isInitialLoading || isRefreshing) ? Array(8).fill({}) : displayedEmails}
+          renderItem={(isInitialLoading || isRefreshing) ? renderSkeletonItem : renderEmailItem}
+          keyExtractor={(item, index) => (isInitialLoading || isRefreshing) ? index.toString() : item.id}
           ListHeaderComponent={renderListHeader()}
           ListEmptyComponent={
-            !isSearchLoading && !isInitialLoading && (
+            !isSearchLoading && !isInitialLoading && !isRefreshing && (
               <View style={styles.noEmailsContainer}>
                 <Text style={styles.noEmailsText}>No emails to display</Text>
               </View>
@@ -1450,7 +1478,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
 });
-
-
 
 export default MailBox;
