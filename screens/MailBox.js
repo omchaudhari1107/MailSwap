@@ -10,7 +10,6 @@ import {
   Platform,
   Image,
   BackHandler,
-  ActivityIndicator,
   Keyboard,
   RefreshControl,
   Alert,
@@ -212,10 +211,10 @@ const LETTER_COLORS = {
 
 // Constants for company-specific styling
 const COMPANY_STYLES = {
-  'google.com': { backgroundColor: '#fef7e0', avatar: 'https://www.google.com/favicon.ico' },
+  'google.com': { backgroundColor: '#fef7e0', avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' },
   'netflix.com': { backgroundColor: '#e50914', avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico' },
   'amazon.com': { backgroundColor: '#ff9900', avatar: 'https://www.amazon.com/favicon.ico' },
-  'paypal.com': { backgroundColor: '#003087', avatar: 'https://www.paypal.com/favicon.ico' },
+  'paypal.com': { backgroundColor: 'white', avatar: 'https://upload.wikimedia.org/wikipedia/commons/a/a4/Paypal_2014_logo.png' },
   'apple.com': { backgroundColor: '#000000', avatar: 'https://www.apple.com/favicon.ico' },
   'microsoft.com': { backgroundColor: '#00a4ef', avatar: 'https://www.microsoft.com/favicon.ico' },
   'facebook.com': { backgroundColor: '#1877f2', avatar: 'https://www.facebook.com/favicon.ico' },
@@ -435,7 +434,9 @@ const MailBox = ({ route, navigation }) => {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
+    setIsInitialLoading(true);
     await fetchEmails();
+    setIsInitialLoading(false);
     setIsRefreshing(false);
   }, [fetchEmails]);
 
@@ -677,7 +678,22 @@ const MailBox = ({ route, navigation }) => {
     }
   };
 
-  const renderEmailItem = ({ item }) => {
+  const renderSkeletonItem = () => (
+    <View style={styles.emailItem}>
+      <View style={styles.emailLeftSection}>
+        <View style={[styles.senderIcon, { backgroundColor: '#e0e0e0' }]} />
+      </View>
+      <View style={styles.emailContent}>
+        <View style={[styles.skeletonText, { width: '60%', height: 16, marginBottom: 4 }]} />
+        <View style={[styles.skeletonText, { width: '80%', height: 14 }]} />
+      </View>
+      <View style={styles.emailRight}>
+        <View style={[styles.skeletonText, { width: 40, height: 13 }]} />
+      </View>
+    </View>
+  );
+
+  const renderEmailItem = ({ item, index }) => {
     const getAvatarAndColor = () => {
       const senderEmail = String(item.from || item.sender || '');
       const senderName = item.senderName || senderEmail.split('@')[0] || '';
@@ -775,18 +791,17 @@ const MailBox = ({ route, navigation }) => {
             onPress={() => handleAvatarPress(item.id)}
             style={styles.avatarContainer}
           >
-            {isSelectionMode ? (
-              <View style={[
-                styles.checkbox,
-                isSelected && styles.checkboxSelected
-              ]}>
-                {isSelected && (
-                  <Ionicons name="checkmark" size={18} color="#fff" style={styles.boldIcon} />
-                )}
-              </View>
-            ) : (
+            <View style={[
+              styles.checkbox,
+              isSelected && styles.checkboxSelected,
+              !isSelectionMode && styles.hiddenCheckbox
+            ]}>
+              {isSelected && (
+                <Ionicons name="checkmark" size={18} color="#fff" style={styles.boldIcon} />
+              )}
+            </View>
+            {!isSelectionMode && (
               <>
-                {!item.isRead && <View style={styles.unreadDot} />}
                 <View style={[styles.senderIcon, { backgroundColor }]}>
                   {isLetter ? (
                     <Text style={styles.avatarLetter}>{avatarSource}</Text>
@@ -799,6 +814,7 @@ const MailBox = ({ route, navigation }) => {
                   ) : (
                     <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
                   )}
+                  
                 </View>
               </>
             )}
@@ -818,10 +834,10 @@ const MailBox = ({ route, navigation }) => {
             >
               {highlightText(item.subject, searchQuery)}
             </Text>
-            <Text style={styles.preview} numberOfLines={1}>
-              · {highlightText(item.preview, searchQuery)}
-            </Text>
           </View>
+            <Text style={styles.preview} numberOfLines={1}>
+            {highlightText(item.preview, searchQuery)}
+            </Text>
         </View>
         <View style={styles.emailRight}>
           <Text style={[styles.time, !item.isRead && styles.unreadText]}>{item.time}</Text>
@@ -829,6 +845,46 @@ const MailBox = ({ route, navigation }) => {
             <Ionicons name="star" size={20} color="#f4b400" style={styles.starIcon} />
           )}
         </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderHeader = () => {
+    if (!isSelectionMode) return null;
+    return (
+      <View style={styles.selectionHeader}>
+        <TouchableOpacity onPress={clearSelection}>
+          <Ionicons name="close" size={24} color="#000000" style={styles.boldIcon} />
+        </TouchableOpacity>
+        <Text style={styles.selectionCount}>
+          {selectedEmails.size} Selected
+        </Text>
+        <TouchableOpacity
+          onPress={() => deleteEmails([...selectedEmails])}
+          disabled={selectedEmails.size === 0}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={24}
+            color={selectedEmails.size > 0 ? "#1c1a17" : "#000000"}
+            style={styles.boldIcon}
+          />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderListHeader = () => {
+    if (!isSelectionMode) return null;
+    return (
+      <TouchableOpacity style={styles.selectAllRow} onPress={handleSelectAll}>
+        <Ionicons
+          name={selectedEmails.size === displayedEmails.length && displayedEmails.length > 0 ? "checkbox" : "square-outline"}
+          size={24}
+          color="#000000"
+          style={styles.boldIcon}
+        />
+        <Text style={styles.selectAllText}>Select All</Text>
       </TouchableOpacity>
     );
   };
@@ -864,34 +920,7 @@ const MailBox = ({ route, navigation }) => {
       />
       <View style={styles.header}>
         {isSelectionMode ? (
-          <View style={styles.selectionHeader}>
-            <TouchableOpacity onPress={clearSelection}>
-              <Ionicons name="close" size={24} color="#000000" style={styles.boldIcon} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleSelectAll}>
-              <Ionicons 
-                name={selectedEmails.size === displayedEmails.length ? "checkbox" : "square-outline"} 
-                size={24} 
-                color="#000000" 
-                style={styles.boldIcon}
-              />
-              {/* Select All */}
-            </TouchableOpacity>
-            <Text style={styles.selectionCount}>
-              {selectedEmails.size} selected
-            </Text>
-            <TouchableOpacity 
-              onPress={() => deleteEmails([...selectedEmails])}
-              disabled={selectedEmails.size === 0}
-            >
-              <Ionicons 
-                name="trash-outline" 
-                size={24} 
-                color={selectedEmails.size > 0 ? "#1c1a17" : "#000000"} 
-                style={styles.boldIcon}
-              />
-            </TouchableOpacity>
-          </View>
+          renderHeader()
         ) : (
           <TouchableOpacity style={styles.searchBar}>
             <Ionicons name="search" size={20} color="#000000" style={styles.boldIcon} />
@@ -1017,22 +1046,26 @@ const MailBox = ({ route, navigation }) => {
               </View>
             )
           )}
+
+          {(isSearchLoading || isInitialLoading) && (
+            <FlatList
+              data={[1, 2, 3, 4, 5 ]}
+              renderItem={renderSkeletonItem}
+              keyExtractor={(item) => item.toString()}
+              style={styles.searchResultsList}
+            />
+          )}
         </View>
       )}
 
-      {(isSearchLoading || isInitialLoading) && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a73e8" />
-        </View>
-      )}
-
-      {!isSearchFocused && !isInitialLoading && (
+      {!isSearchFocused && (
         <FlatList
-          data={displayedEmails}
-          renderItem={renderEmailItem}
-          keyExtractor={(item) => item.id}
+          data={isInitialLoading ? [1, 2, 3, 4, 5, 6,7,8] : displayedEmails}
+          renderItem={isInitialLoading ? renderSkeletonItem : renderEmailItem}
+          keyExtractor={(item) => (isInitialLoading ? item.toString() : item.id)}
+          ListHeaderComponent={renderListHeader()}
           ListEmptyComponent={
-            !isSearchLoading && (
+            !isSearchLoading && !isInitialLoading && (
               <View style={styles.noEmailsContainer}>
                 <Text style={styles.noEmailsText}>No emails to display</Text>
               </View>
@@ -1102,10 +1135,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef9f3',
   },
   unreadEmail: {
-    backgroundColor: '#f8fafd',
+    // backgroundColor: '#f8fafd',
   },
   emailLeftSection: {
-
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
@@ -1115,7 +1147,7 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#1a73e8',
-    marginRight: 8,
+    // marginRight: 8,
   },
   senderIcon: {
     width: 48,
@@ -1198,17 +1230,6 @@ const styles = StyleSheet.create({
   highlightedText: {
     backgroundColor: '#fff3cd',
     color: '#202124',
-  },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fef9f3',
-    zIndex: 1000,
   },
   searchOverlay: {
     position: 'absolute',
@@ -1321,41 +1342,70 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   selectionHeader: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 16,
+    backgroundColor: '#fef9f3',
+    width: '100%',
   },
   selectionCount: {
+    fontSize: 18,
+    color: '#1f2937',
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fef9f3',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
+  },
+  selectAllText: {
     fontSize: 16,
     color: '#1f2937',
-    fontWeight: '500',
+    marginLeft: 8,
+    fontWeight: '400',
   },
   avatarContainer: {
     width: 48,
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 100,
     borderWidth: 2,
     borderColor: '#9ca3af',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'absolute',
+    // left: 12,
+    zIndex: 1,
   },
   checkboxSelected: {
-    backgroundColor: '#1a73e8',
-    borderColor: '#1a73e8',
+    backgroundColor: '#8b5014',
+    borderColor: '#8b5014',
+  },
+  hiddenCheckbox: {
+    opacity: 0,
   },
   boldIcon: {
     fontWeight: 'bold',
-    paddingRight: 10,
+  },
+  skeletonText: {
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+  },
+  subjectContainer: {
+    flexDirection: 'row',
   },
 });
 
