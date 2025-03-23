@@ -510,12 +510,12 @@ const EmailDetail = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fef9f3', // Changed from #ffffff
   },
   header: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fef9f3', // Changed from #ffffff
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#f1f3f4', // Changed from #e0e0e0
     paddingTop: Platform.OS === 'ios' ? 48 : StatusBar.currentHeight + 8,
   },
   headerTop: {
@@ -536,12 +536,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fef9f3', // Changed from #ffffff
   },
   subject: {
     fontSize: 22,
     fontWeight: '400',
-    color: '#202124',
+    color: '#1f2937', // Changed from #202124
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f3f4',
+    borderBottomColor: '#f1f3f4', // Changed from #f1f3f4 (unchanged but matches MailBox)
   },
   senderContainer: {
     flexDirection: 'row',
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#202124',
+    color: '#1f2937', // Changed from #202124
   },
   recipientInfo: {
     flexDirection: 'row',
@@ -595,18 +595,18 @@ const styles = StyleSheet.create({
   },
   recipientText: {
     fontSize: 14,
-    color: '#5f6368',
+    color: '#6b7280', // Changed from #5f6368
   },
   expandIcon: {
     marginLeft: 4,
   },
   timeText: {
     fontSize: 14,
-    color: '#5f6368',
+    color: '#6b7280', // Changed from #5f6368
     marginTop: 8,
   },
   expandedHeader: {
-    backgroundColor: '#f1f3f4',
+    backgroundColor: '#f8e5d6', // Changed from #f1f3f4
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
@@ -619,16 +619,16 @@ const styles = StyleSheet.create({
   headerLabel: {
     width: 60,
     fontSize: 14,
-    color: '#5f6368',
+    color: '#6b7280', // Changed from #5f6368
   },
   headerValue: {
     flex: 1,
     fontSize: 14,
-    color: '#202124',
+    color: '#1f2937', // Changed from #202124
   },
   emailBody: {
     width: '100%',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fef9f3', // Changed from #ffffff
     position: 'relative',
   },
   webView: {
@@ -641,14 +641,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(254, 249, 243, 0.9)', // Changed from rgba(255, 255, 255, 0.9)
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#5f6368',
+    color: '#6b7280', // Changed from #5f6368
   },
   skeletonContainer: {
     width: '100%',
@@ -683,29 +683,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    backgroundColor: '#ffffff',
+    borderTopColor: '#f1f3f4', // Changed from #e0e0e0
+    backgroundColor: '#fef9f3', // Changed from #ffffff
   },
   replyButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1a73e8',
+    backgroundColor: '#8b5014', // Changed from #1a73e8 to a warmer tone
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 24,
     marginRight: 16,
   },
   replyButtonText: {
-    color: 'white',
+    color: '#ffdbc1', // Changed from white to match FAB accent
     fontSize: 16,
     fontWeight: '500',
     marginLeft: 8,
   },
   forwardButton: {
     padding: 12,
-    backgroundColor: '#f1f3f4',
+    backgroundColor: '#f8e5d6', // Changed from #f1f3f4
     borderRadius: 20,
   },
 });
