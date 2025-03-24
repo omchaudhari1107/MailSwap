@@ -9,6 +9,7 @@ import GoogleAuth from './screens/GoogleAuth';
 import Profile from './screens/Profile';
 import MailBox from './screens/MailBox';
 import EmailDetail from './screens/EmailDetail';
+import ComposeMail from './screens/ComposeMail';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -69,6 +70,11 @@ export default function App() {
         <Stack.Screen 
           name="EmailDetail" 
           component={EmailDetail}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="ComposeMail" 
+          component={ComposeMail}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

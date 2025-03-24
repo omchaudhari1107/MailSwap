@@ -1174,7 +1174,7 @@ const MailBox = ({ route, navigation }) => {
 
       {!isSearchFocused && !isInitialLoading && (
         <TouchableOpacity style={styles.fab}>
-          <Ionicons name="sparkles" size={24} color="#291609" style={styles.boldIcon} />
+          <Ionicons name="sparkles" size={24} color="#291609" style={styles.aiicon} />
           <Text style={styles.fabText}>Compose with AI</Text>
         </TouchableOpacity>
       )}
@@ -1503,6 +1503,10 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#8b5014',
   },
+  aiicon:{
+    paddingRight: 10,
+    // marginLeft: 10,
+  }
 });
 
 export default MailBox;
