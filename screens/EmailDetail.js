@@ -13,7 +13,6 @@ import {
   Platform,
   StatusBar,
   Linking,
-  ActivityIndicator,
   PermissionsAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,11 +66,11 @@ const EmailDetail = ({ route, navigation }) => {
   const scrollY = new Animated.Value(0);
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 100],
-    outputRange: [120, 60],
+    outputRange: [140, 60],
     extrapolate: 'clamp',
   });
 
-  // Skeleton animation
+  // Enhanced skeleton animation
   const shimmerAnimatedValue = new Animated.Value(0);
 
   useEffect(() => {
@@ -88,7 +87,7 @@ const EmailDetail = ({ route, navigation }) => {
 
   const translateX = shimmerAnimatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [-300, 300],
+    outputRange: [-Dimensions.get('window').width, Dimensions.get('window').width],
   });
 
   const handleDelete = useCallback(() => {
@@ -147,11 +146,9 @@ const EmailDetail = ({ route, navigation }) => {
   const handleWebViewMessage = useCallback((event) => {
     const data = event.nativeEvent.data;
     if (!isNaN(data)) {
-      // Handle height update
       setWebViewHeight(parseInt(data));
       setIsLoading(false);
     } else {
-      // Handle attachment click
       try {
         const message = JSON.parse(data);
         if (message.type === 'openAttachment') {
@@ -166,13 +163,10 @@ const EmailDetail = ({ route, navigation }) => {
 
   const handleAttachmentClick = async (mimeType, base64Data, filename, attachmentId) => {
     try {
-      // Request storage permissions
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) return;
 
       let filePath;
-
-      // Determine file extension based on MIME type
       const extensionMap = {
         'application/pdf': '.pdf',
         'image/jpeg': '.jpg',
@@ -189,24 +183,19 @@ const EmailDetail = ({ route, navigation }) => {
       const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_') || 'attachment';
       const tempFileName = `${sanitizedFilename}${extension}`;
 
-      // Use TemporaryDirectoryPath for iOS and Android
       const tempDir = RNFS.TemporaryDirectoryPath;
       filePath = `${tempDir}/${tempFileName}`;
 
       if (base64Data) {
-        // Write Base64 data to a temporary file
         await RNFS.writeFile(filePath, base64Data, 'base64');
       } else if (attachmentId && email.id) {
-        // Fetch attachment from Gmail API
         const tokens = await getGoogleToken();
         const response = await fetch(
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${email.id}/attachments/${attachmentId}`,
-          {
-            headers: { Authorization: `Bearer ${tokens.accessToken}` },
-          }
+          { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
         );
         const attachmentData = await response.json();
-        const decodedData = attachmentData.data; // Base64url encoded
+        const decodedData = attachmentData.data;
         const base64Content = decodedData.replace(/-/g, '+').replace(/_/g, '/');
         await RNFS.writeFile(filePath, base64Content, 'base64');
       } else {
@@ -214,28 +203,17 @@ const EmailDetail = ({ route, navigation }) => {
         return;
       }
 
-      console.log('File written to:', filePath);
-
-      // Create file URI
       const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
-
-      // First, try Linking.openURL
       const supported = await Linking.canOpenURL(fileUri);
       if (supported) {
-        console.log('Attempting to open URI:', fileUri);
         await Linking.openURL(fileUri);
       } else {
-        console.log('Linking.openURL not supported, falling back to Share.share');
-        // Fallback to Share.share
         await Share.share({
           url: fileUri,
           title: 'Open with',
           mimeType: mimeType,
         });
       }
-
-      // Clean up the temporary file (optional)
-      // await RNFS.unlink(filePath);
     } catch (error) {
       console.error('Error opening attachment:', error);
       Alert.alert('Error', 'Failed to open attachment: ' + error.message);
@@ -250,67 +228,31 @@ const EmailDetail = ({ route, navigation }) => {
     setIsLoading(false);
   };
 
-  // HTML template for WebView
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body {
-            font-family: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            font-size: 16px;
+            font-family: 'Roboto', -apple-system, sans-serif;
+            font-size: 14px;
             line-height: 1.5;
             color: #202124;
             margin: 0;
-            padding: 0 16px;
-          }
-          img {
-            max-width: 100%;
-            height: auto;
-          }
-          a {
-            color: #1a73e8;
-            text-decoration: underline;
-          }
-          pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-x: auto;
-            background-color: #f8f9fa;
             padding: 16px;
-            border-radius: 4px;
+            background-color: #fef9f3;
           }
-          blockquote {
-            border-left: 4px solid #e0e0e0;
-            margin: 0;
-            padding-left: 16px;
-            color: #5f6368;
-          }
-          .attachment-container {
-            margin-top: 20px;
-            border-top: 1px solid #eee;
-            padding-top: 10px;
-          }
-          .attachment-item {
-            border: 1px solid #ddd;
-            padding: 10px;
-            border-radius: 8px;
-            margin: 5px 0;
-            cursor: pointer;
-          }
-          .attachment-icon {
-            font-size: 32px;
-            margin-right: 10px;
-          }
-          .attachment-name {
-            font-size: 14px;
-            word-break: break-word;
-          }
-          .attachment-size {
-            font-size: 12px;
-            color: #666;
-          }
+          img { max-width: 100%; height: auto; }
+          a { color: #1a0dab; text-decoration: none; }
+          a:hover { text-decoration: underline; }
+          pre { white-space: pre-wrap; word-wrap: break-word; background: #f8e5d6; padding: 8px; border-radius: 4px; }
+          blockquote { border-left: 2px solid #dadce0; margin: 0; padding-left: 12px; color: #5f6368; }
+          .attachment-container { margin-top: 16px; border-top: 1px solid #dadce0; padding-top: 8px; }
+          .attachment-item { display: flex; align-items: center; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; margin-bottom: 8px; cursor: pointer; background: #fef9f3; }
+          .attachment-icon { font-size: 24px; margin-right: 8px; }
+          .attachment-name { font-size: 14px; color: #202124; }
+          .attachment-size { font-size: 12px; color: #5f6368; margin-left: 8px; }
         </style>
       </head>
       <body>
@@ -333,62 +275,58 @@ const EmailDetail = ({ route, navigation }) => {
     <View style={styles.skeletonContainer}>
       <View style={styles.skeletonLines}>
         <Animated.View
-          style={[
-            styles.skeletonLine,
-            styles.skeletonLongLine,
-            { transform: [{ translateX }] },
-          ]}
-        />
+          style={[styles.skeletonLine, styles.skeletonSubject, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
         <Animated.View
-          style={[
-            styles.skeletonLine,
-            styles.skeletonMediumLine,
-            { transform: [{ translateX }] },
-          ]}
-        />
-        <View style={styles.activityIndicatorContainer}>
-          <ActivityIndicator size="large" color="#000000" />
-        </View>
+          style={[styles.skeletonLine, styles.skeletonSender, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
         <Animated.View
-          style={[
-            styles.skeletonLine,
-            styles.skeletonShortLine,
-            { transform: [{ translateX }] },
-          ]}
-        />
+          style={[styles.skeletonLine, styles.skeletonLongLine, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
         <Animated.View
-          style={[
-            styles.skeletonLine,
-            styles.skeletonLongLine,
-            { transform: [{ translateX }] },
-          ]}
-        />
+          style={[styles.skeletonLine, styles.skeletonMediumLine, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
+        <Animated.View
+          style={[styles.skeletonLine, styles.skeletonShortLine, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
+        <Animated.View
+          style={[styles.skeletonLine, styles.skeletonLongLine, { transform: [{ translateX }] }]}
+        >
+          <View style={styles.shimmerOverlay} />
+        </Animated.View>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar barStyle="dark-content" backgroundColor="#fef9f3" />
 
-      {/* Modern Header */}
+      {/* Header */}
       <Animated.View style={[styles.header, { height: headerHeight }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a73e8" />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#332b23" />
           </TouchableOpacity>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconButton} onPress={handleArchive}>
-              <Ionicons name="archive-outline" size={22} color="#5f6368" />
+              <Ionicons name="archive-outline" size={24} color="#332b23" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={handleDelete}>
-              <Ionicons name="trash-outline" size={22} color="#5f6368" />
+              <Ionicons name="trash-outline" size={24} color="#332b23" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={handleShare}>
-              <Ionicons name="share-outline" size={22} color="#5f6368" />
+              <Ionicons name="share-outline" size={24} color="#332b23" />
             </TouchableOpacity>
           </View>
         </View>
@@ -403,7 +341,18 @@ const EmailDetail = ({ route, navigation }) => {
         )}
         scrollEventThrottle={16}
       >
-        <Text style={styles.subject}>{email.subject}</Text>
+        <View style={styles.subjectContainer}>
+          <Text style={styles.subject} numberOfLines={2}>
+            {email.subject}
+          </Text>
+          <TouchableOpacity onPress={handleToggleStar}>
+            <Ionicons
+              name={isStarred ? 'star' : 'star-outline'}
+              size={24}
+              color={isStarred ? '#f4b400' : '#332b23'}
+            />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.emailMetadata}>
           <View style={styles.senderContainer}>
@@ -417,54 +366,45 @@ const EmailDetail = ({ route, navigation }) => {
                   defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
                 />
               ) : (
-                <Ionicons name="person" size={24} color="white" />
+                <Ionicons name="person" size={24} color="#ffffff" />
               )}
             </View>
             <View style={styles.senderInfo}>
-              <View style={styles.senderNameContainer}>
-                <Text style={styles.senderName}>{email.sender}</Text>
-                <TouchableOpacity onPress={handleToggleStar}>
+              <Text style={styles.senderName} numberOfLines={1}>
+                {email.senderName || email.sender.split('<')[0].trim()}
+              </Text>
+              <TouchableOpacity onPress={() => setShowFullHeader(!showFullHeader)}>
+                <Text style={styles.recipientText} numberOfLines={1}>
+                  {email.sender.includes('<') ? email.sender.match(/<(.+?)>/)[1] : email.sender} • to me
                   <Ionicons
-                    name={isStarred ? 'star' : 'star-outline'}
-                    size={22}
-                    color={isStarred ? '#f4b400' : '#5f6368'}
+                    name={showFullHeader ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color="#332b23"
+                    style={styles.expandIcon}
                   />
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                style={styles.recipientInfo}
-                onPress={() => setShowFullHeader(!showFullHeader)}
-              >
-                <Text style={styles.recipientText}>to me</Text>
-                <Ionicons
-                  name={showFullHeader ? 'chevron-up' : 'chevron-down'}
-                  size={16}
-                  color="#5f6368"
-                  style={styles.expandIcon}
-                />
+                </Text>
               </TouchableOpacity>
             </View>
+            <Text style={styles.timeText}>{email.time}</Text>
           </View>
 
-          <Text style={styles.timeText}>{email.time}</Text>
+          {showFullHeader && (
+            <View style={styles.expandedHeader}>
+              <View style={styles.headerRow}>
+                <Text style={styles.headerLabel}>From:</Text>
+                <Text style={styles.headerValue}>{email.sender}</Text>
+              </View>
+              <View style={styles.headerRow}>
+                <Text style={styles.headerLabel}>To:</Text>
+                <Text style={styles.headerValue}>me</Text>
+              </View>
+              <View style={styles.headerRow}>
+                <Text style={styles.headerLabel}>Date:</Text>
+                <Text style={styles.headerValue}>{email.time}</Text>
+              </View>
+            </View>
+          )}
         </View>
-
-        {showFullHeader && (
-          <View style={styles.expandedHeader}>
-            <View style={styles.headerRow}>
-              <Text style={styles.headerLabel}>From:</Text>
-              <Text style={styles.headerValue}>{email.sender}</Text>
-            </View>
-            <View style={styles.headerRow}>
-              <Text style={styles.headerLabel}>To:</Text>
-              <Text style={styles.headerValue}>me</Text>
-            </View>
-            <View style={styles.headerRow}>
-              <Text style={styles.headerLabel}>Date:</Text>
-              <Text style={styles.headerValue}>{email.time}</Text>
-            </View>
-          </View>
-        )}
 
         <View style={[styles.emailBody, { height: webViewHeight || 'auto' }]}>
           <WebView
@@ -486,7 +426,6 @@ const EmailDetail = ({ route, navigation }) => {
           />
           {isLoading && (
             <View style={styles.loadingOverlay}>
-              <Text style={styles.loadingText}>Loading email content...</Text>
               <SkeletonLoader />
             </View>
           )}
@@ -495,12 +434,13 @@ const EmailDetail = ({ route, navigation }) => {
 
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.replyButton}>
-          <Ionicons name="arrow-undo" size={22} color="white" />
-          <Text style={styles.replyButtonText}>Reply</Text>
+        <TouchableOpacity style={styles.actionButton} onPress={() => {}}>
+          <Ionicons name="arrow-undo-outline" size={24} color="#ffdbc1" />
+          <Text style={styles.actionButtonText}>Reply</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.forwardButton}>
-          <Ionicons name="arrow-forward" size={22} color="#5f6368" />
+        <TouchableOpacity style={styles.actionButton} onPress={() => {}}>
+          <Ionicons name="arrow-redo-outline" size={24} color="#ffdbc1" />
+          <Text style={styles.actionButtonText}>Forward</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -510,52 +450,64 @@ const EmailDetail = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fef9f3', // Changed from #ffffff
+    backgroundColor: '#fef9f3',
   },
   header: {
-    backgroundColor: '#fef9f3', // Changed from #ffffff
+    backgroundColor: '#fef9f3',
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f3f4', // Changed from #e0e0e0
+    borderBottomColor: '#dadce0',
     paddingTop: Platform.OS === 'ios' ? 48 : StatusBar.currentHeight + 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    position: 'fixed',
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    position: 'fixed',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
   },
   backButton: {
-    padding: 12,
+    padding: 8,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    padding: 12,
+    padding: 8,
   },
   content: {
     flex: 1,
-    backgroundColor: '#fef9f3', // Changed from #ffffff
+    backgroundColor: '#fef9f3',
+  },
+  subjectContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   subject: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '400',
-    color: '#1f2937', // Changed from #202124
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    color: '#202124',
+    flex: 1,
+    marginRight: 8,
   },
   emailMetadata: {
     paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f3f4', // Changed from #f1f3f4 (unchanged but matches MailBox)
+    borderBottomColor: '#dadce0',
   },
   senderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
   },
   avatar: {
     width: 40,
@@ -566,7 +518,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    color: 'white',
+    color: '#ffffff',
     fontSize: 18,
     fontWeight: '500',
   },
@@ -578,58 +530,48 @@ const styles = StyleSheet.create({
   senderInfo: {
     flex: 1,
   },
-  senderNameContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   senderName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1f2937', // Changed from #202124
-  },
-  recipientInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
+    color: '#202124',
   },
   recipientText: {
-    fontSize: 14,
-    color: '#6b7280', // Changed from #5f6368
+    fontSize: 12,
+    color: '#5f6368',
+    marginTop: 2,
   },
   expandIcon: {
     marginLeft: 4,
   },
   timeText: {
-    fontSize: 14,
-    color: '#6b7280', // Changed from #5f6368
-    marginTop: 8,
+    fontSize: 12,
+    color: '#5f6368',
+    marginLeft: 8,
   },
   expandedHeader: {
-    backgroundColor: '#f8e5d6', // Changed from #f1f3f4
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#f8e5d6', // Slightly darker for contrast
+    padding: 12,
+    marginTop: 8,
+    borderRadius: 4,
   },
   headerRow: {
     flexDirection: 'row',
     marginBottom: 4,
   },
   headerLabel: {
-    width: 60,
-    fontSize: 14,
-    color: '#6b7280', // Changed from #5f6368
+    width: 50,
+    fontSize: 12,
+    color: '#5f6368',
+    fontWeight: '500',
   },
   headerValue: {
     flex: 1,
-    fontSize: 14,
-    color: '#1f2937', // Changed from #202124
+    fontSize: 12,
+    color: '#202124',
   },
   emailBody: {
     width: '100%',
-    backgroundColor: '#fef9f3', // Changed from #ffffff
-    position: 'relative',
+    backgroundColor: '#fef9f3',
   },
   webView: {
     backgroundColor: 'transparent',
@@ -641,72 +583,80 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(254, 249, 243, 0.9)', // Changed from rgba(255, 255, 255, 0.9)
+    backgroundColor: 'rgba(254, 249, 243, 0.9)', // Adjusted for #fef9f3
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#6b7280', // Changed from #5f6368
   },
   skeletonContainer: {
     width: '100%',
     paddingHorizontal: 16,
-    paddingTop: 20,
   },
   skeletonLines: {
     width: '100%',
   },
   skeletonLine: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#e8eaed',
     borderRadius: 4,
-    height: 12,
+    height: 10,
     marginBottom: 12,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  skeletonSubject: {
+    width: '80%',
+    height: 20,
+    marginBottom: 16,
+  },
+  skeletonSender: {
+    width: '60%',
+    height: 14,
+    marginBottom: 16,
   },
   skeletonLongLine: {
-    width: '100%',
+    width: '90%',
   },
   skeletonMediumLine: {
     width: '70%',
   },
   skeletonShortLine: {
-    width: '40%',
+    width: '50%',
   },
-  activityIndicatorContainer: {
-    alignItems: 'center',
-    marginVertical: 12,
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    opacity: 0.7,
   },
   bottomBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f1f3f4', // Changed from #e0e0e0
-    backgroundColor: '#fef9f3', // Changed from #ffffff
+    borderTopColor: '#dadce0',
+    backgroundColor: '#fef9f3',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
-  replyButton: {
-    flex: 1,
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#8b5014', // Changed from #1a73e8 to a warmer tone
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    marginRight: 16,
-  },
-  replyButtonText: {
-    color: '#ffdbc1', // Changed from white to match FAB accent
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  forwardButton: {
-    padding: 12,
-    backgroundColor: '#f8e5d6', // Changed from #f1f3f4
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: '#8b5014',
     borderRadius: 20,
+  },
+  actionButtonText: {
+    fontSize: 14,
+    color: '#ffdbc1', // Light color for contrast on #8b5014
+    marginLeft: 8,
+    fontWeight: '500',
   },
 });
 
