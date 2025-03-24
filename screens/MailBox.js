@@ -611,7 +611,6 @@ const MailBox = ({ route, navigation }) => {
         Keyboard.dismiss();
         return true;
       }
-      // BackHandler.exitApp();
       return false;
     });
 
@@ -642,10 +641,6 @@ const MailBox = ({ route, navigation }) => {
   };
 
   const handleAvatarPress = (emailId) => {
-    if (!isSelectionMode) {
-      setIsSelectionMode(true);
-    }
-
     setSelectedEmails((prev) => {
       const newSelected = new Set(prev);
       if (newSelected.has(emailId)) {
@@ -653,9 +648,7 @@ const MailBox = ({ route, navigation }) => {
       } else {
         newSelected.add(emailId);
       }
-      if (newSelected.size === 0) {
-        setIsSelectionMode(false);
-      }
+      setIsSelectionMode(newSelected.size > 0);
       return newSelected;
     });
   };
@@ -839,7 +832,7 @@ const MailBox = ({ route, navigation }) => {
     };
 
     const handlePress = async () => {
-      if (isSelectionMode) {
+      if (isSelectionMode && selectedEmails.has(item.id)) {
         handleAvatarPress(item.id);
       } else {
         if (!item.isRead) {
@@ -872,31 +865,24 @@ const MailBox = ({ route, navigation }) => {
             onPress={() => handleAvatarPress(item.id)}
             style={styles.avatarContainer}
           >
-            <View style={[
-              styles.checkbox,
-              isSelected && styles.checkboxSelected,
-              !isSelectionMode && styles.hiddenCheckbox
-            ]}>
-              {isSelected && (
+            {isSelected ? (
+              <View style={[styles.checkbox, styles.checkboxSelected]}>
                 <Ionicons name="checkmark" size={18} color="#fff" style={styles.boldIcon} />
-              )}
-            </View>
-            {!isSelectionMode && (
-              <>
-                <View style={[styles.senderIcon, { backgroundColor }]}>
-                  {isLetter ? (
-                    <Text style={styles.avatarLetter}>{avatarSource}</Text>
-                  ) : typeof avatarSource === 'string' && avatarSource.startsWith('http') ? (
-                    <Image
-                      source={{ uri: avatarSource }}
-                      style={styles.avatarImage}
-                      defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
-                    />
-                  ) : (
-                    <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
-                  )}
-                </View>
-              </>
+              </View>
+            ) : (
+              <View style={[styles.senderIcon, { backgroundColor }]}>
+                {isLetter ? (
+                  <Text style={styles.avatarLetter}>{avatarSource}</Text>
+                ) : typeof avatarSource === 'string' && avatarSource.startsWith('http') ? (
+                  <Image
+                    source={{ uri: avatarSource }}
+                    style={styles.avatarImage}
+                    defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
+                  />
+                ) : (
+                  <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
+                )}
+              </View>
             )}
           </TouchableOpacity>
         </View>
@@ -930,7 +916,6 @@ const MailBox = ({ route, navigation }) => {
   };
 
   const renderHeader = () => {
-    if (!isSelectionMode) return null;
     return (
       <View style={styles.selectionHeader}>
         <TouchableOpacity onPress={clearSelection}>
@@ -999,49 +984,50 @@ const MailBox = ({ route, navigation }) => {
         barStyle="dark-content"
       />
       <View style={styles.header}>
-        {isSelectionMode ? (
-          renderHeader()
-        ) : (
-          <TouchableOpacity style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#000000" style={styles.boldIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search in mail"
-              value={searchQuery}
-              onChangeText={handleSearch}
-              onSubmitEditing={handleSearchSubmit}
-              onFocus={() => setIsSearchFocused(true)}
-              placeholderTextColor="#5f6368"
-              autoCapitalize="none"
-              returnKeyType="search"
-              accessibilityLabel="Search emails"
-              accessibilityRole="search"
-            />
-
-            {(searchQuery.length > 0 || isSearchFocused) && (
-              <TouchableOpacity
-                onPress={() => {
-                  setSearchQuery('');
-                  setSearchResults([]);
-                  setIsSearching(false);
-                  setIsSearchFocused(false);
-                  Keyboard.dismiss();
-                }}
-              >
-                <Ionicons name="close-circle" size={20} color="#000000" style={styles.boldIcon} />
-              </TouchableOpacity>
-            )}
-
-          </TouchableOpacity>
-
-        )}
-        <View style={styles.profileHeader}>
+        <View style={styles.headerContent}>
+          {isSelectionMode ? (
+            renderHeader()
+          ) : (
+            <TouchableOpacity style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#000000" style={styles.boldIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search in mail"
+                value={searchQuery}
+                onChangeText={handleSearch}
+                onSubmitEditing={handleSearchSubmit}
+                onFocus={() => setIsSearchFocused(true)}
+                placeholderTextColor="#5f6368"
+                autoCapitalize="none"
+                returnKeyType="search"
+                accessibilityLabel="Search emails"
+                accessibilityRole="search"
+              />
+              {(searchQuery.length > 0 || isSearchFocused) && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setIsSearching(false);
+                    setIsSearchFocused(false);
+                    Keyboard.dismiss();
+                  }}
+                >
+                  <Ionicons name="close-circle" size={20} color="#000000" style={styles.boldIcon} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.profileHeader}
+          onPress={() => navigation.navigate('Profile', { user })}
+        >
           <Image
             source={{ uri: user.photo || user.photoURL }}
             style={styles.profileImage}
-
           />
-        </View>
+        </TouchableOpacity>
       </View>
 
       {isSearchFocused && (
@@ -1197,13 +1183,15 @@ const styles = StyleSheet.create({
     elevation: 0,
     zIndex: 1001,
   },
+  headerContent: {
+    flex: 1, // Takes up available space, pushing profileHeader to the right
+    marginRight: 12, // Consistent spacing between content and profile image
+  },
   searchBar: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8e5d6',
     borderRadius: 28,
-    marginHorizontal: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
     elevation: 0,
@@ -1224,9 +1212,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     backgroundColor: '#fef9f3',
   },
-  unreadEmail: {
-    // backgroundColor: '#f8fafd',
-  },
+  unreadEmail: {},
   emailLeftSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1431,7 +1417,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#fef9f3',
-    width: '100%',
   },
   selectionCount: {
     fontSize: 18,
@@ -1476,9 +1461,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#8b5014',
     borderColor: '#8b5014',
   },
-  hiddenCheckbox: {
-    opacity: 0,
-  },
   boldIcon: {
     fontWeight: 'bold',
   },
@@ -1488,25 +1470,21 @@ const styles = StyleSheet.create({
   },
   subjectContainer: {
     flexDirection: 'row',
-  }, profileHeader: {
-    position: 'relative',
-    zIndex: 100,
-    // marginBottom: 15,
+  },
+  profileHeader: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileImage: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
     width: 43,
     height: 43,
     borderRadius: 100,
     borderWidth: 4,
     borderColor: '#8b5014',
   },
-  aiicon:{
+  aiicon: {
     paddingRight: 10,
-    // marginLeft: 10,
-  }
+  },
 });
 
 export default MailBox;

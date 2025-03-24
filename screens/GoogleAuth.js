@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Image, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { auth } from '../firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
@@ -45,6 +45,7 @@ const GoogleAuth = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const scrollViewRef = useRef(null);
   const [emails, setEmails] = useState([]);
+  const [isLoading, setIsLoading] = useState(true); // State for splash screen
 
   useEffect(() => {
     // Configure Google Sign-In
@@ -75,40 +76,43 @@ const GoogleAuth = () => {
                 },
               ],
             });
+          } else {
+            setIsLoading(false); // Show login screen if no user found
           }
+        } else {
+          setIsLoading(false); // Show login screen if not signed in
         }
-        // If not signed in, stay on login screen (no action needed)
       } catch (error) {
         console.error('Error checking authentication status:', error);
-        // Stay on login screen if there's an error
+        setIsLoading(false); // Show login screen even if there's an error
       }
     };
 
     checkAuthStatus();
-
-    // No cleanup needed here since we're not subscribing to ongoing events
   }, [navigation]);
 
   // Auto slide functionality
   useEffect(() => {
-    const slideInterval = setInterval(() => {
-      if (activeSlide < slides.length - 1) {
-        scrollViewRef.current?.scrollTo({
-          x: (activeSlide + 1) * (width - 48),
-          animated: true,
-        });
-        setActiveSlide(activeSlide + 1);
-      } else {
-        scrollViewRef.current?.scrollTo({
-          x: 0,
-          animated: true,
-        });
-        setActiveSlide(0);
-      }
-    }, 1500); // Change slide every 1.5 seconds
+    if (!isLoading) { // Only start slider when not loading
+      const slideInterval = setInterval(() => {
+        if (activeSlide < slides.length - 1) {
+          scrollViewRef.current?.scrollTo({
+            x: (activeSlide + 1) * (width - 48),
+            animated: true,
+          });
+          setActiveSlide(activeSlide + 1);
+        } else {
+          scrollViewRef.current?.scrollTo({
+            x: 0,
+            animated: true,
+          });
+          setActiveSlide(0);
+        }
+      }, 1500); // Change slide every 1.5 seconds
 
-    return () => clearInterval(slideInterval); // Cleanup interval on unmount
-  }, [activeSlide]);
+      return () => clearInterval(slideInterval); // Cleanup interval on unmount
+    }
+  }, [activeSlide, isLoading]);
 
   const signIn = async () => {
     try {
@@ -141,6 +145,24 @@ const GoogleAuth = () => {
     }
   };
 
+  // Splash Screen UI
+  if (isLoading) {
+    return (
+      <View style={styles.splashContainer}>
+        <View style={styles.splashLogoContainer}>
+          <MaterialCommunityIcons 
+            name="email-fast-outline" 
+            size={60} 
+            color="#FFFFFF" 
+          />
+        </View>
+        <Text style={styles.splashTitle}>Mail Swap</Text>
+        <ActivityIndicator size="large" color="#27160a" style={styles.splashLoader} />
+      </View>
+    );
+  }
+
+  // Login Screen UI
   return (
     <View style={styles.container}>
       <View style={styles.contentContainer}>
@@ -209,6 +231,38 @@ const GoogleAuth = () => {
 };
 
 const styles = StyleSheet.create({
+  // Splash Screen Styles
+  splashContainer: {
+    flex: 1,
+    backgroundColor: '#fef9f3', // Same background as main UI
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashLogoContainer: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#8b5014', // Same accent color
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  splashTitle: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#27160a', // Same text color
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  splashLoader: {
+    marginTop: 30,
+  },
+
+  // Main UI Styles
   container: {
     flex: 1,
     backgroundColor: '#fef9f3',
@@ -223,7 +277,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     width: 100,
     height: 100,
-    backgroundColor: '#27160a',
+    backgroundColor: '#8b5014',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
