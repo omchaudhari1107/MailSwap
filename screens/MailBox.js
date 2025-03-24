@@ -181,9 +181,9 @@ const getEmailBody = (payload) => {
       case 'text/enriched':
         return payload.body?.data
           ? decodeBase64(payload.body.data)
-              .replace(/\n/g, '<br>')
-              .replace(/<</g, '<')
-              .replace(/>>/g, '>')
+            .replace(/\n/g, '<br>')
+            .replace(/<</g, '<')
+            .replace(/>>/g, '>')
           : '';
       default:
         if (payload.parts) {
@@ -224,6 +224,7 @@ const COMPANY_STYLES = {
 };
 
 const MailBox = ({ route, navigation }) => {
+  const [user, setUser] = useState(route.params?.user || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -272,11 +273,11 @@ const MailBox = ({ route, navigation }) => {
         ]),
       ])
     );
-    
+
     if (isRefreshing || isInitialLoading) {
       pulse.start();
     }
-    
+
     return () => pulse.stop();
   }, [pulseAnim, scaleAnim, isRefreshing, isInitialLoading]);
 
@@ -445,7 +446,7 @@ const MailBox = ({ route, navigation }) => {
             },
           }
         );
-        
+
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.error?.message || 'Failed to delete email');
@@ -453,13 +454,13 @@ const MailBox = ({ route, navigation }) => {
       });
 
       await Promise.all(deletePromises);
-      
-      setEmails((currentEmails) => 
+
+      setEmails((currentEmails) =>
         currentEmails.filter((email) => !emailIds.includes(email.id))
       );
       setSelectedEmails(new Set());
       setIsSelectionMode(false);
-      
+
       Alert.alert('Success', `${emailIds.length} email${emailIds.length > 1 ? 's' : ''} moved to Trash`);
       return true;
     } catch (error) {
@@ -644,7 +645,7 @@ const MailBox = ({ route, navigation }) => {
     if (!isSelectionMode) {
       setIsSelectionMode(true);
     }
-    
+
     setSelectedEmails((prev) => {
       const newSelected = new Set(prev);
       if (newSelected.has(emailId)) {
@@ -1016,6 +1017,7 @@ const MailBox = ({ route, navigation }) => {
               accessibilityLabel="Search emails"
               accessibilityRole="search"
             />
+
             {(searchQuery.length > 0 || isSearchFocused) && (
               <TouchableOpacity
                 onPress={() => {
@@ -1029,8 +1031,17 @@ const MailBox = ({ route, navigation }) => {
                 <Ionicons name="close-circle" size={20} color="#000000" style={styles.boldIcon} />
               </TouchableOpacity>
             )}
+
           </TouchableOpacity>
+
         )}
+        <View style={styles.profileHeader}>
+          <Image
+            source={{ uri: user.photo || user.photoURL }}
+            style={styles.profileImage}
+
+          />
+        </View>
       </View>
 
       {isSearchFocused && (
@@ -1477,6 +1488,20 @@ const styles = StyleSheet.create({
   },
   subjectContainer: {
     flexDirection: 'row',
+  }, profileHeader: {
+    position: 'relative',
+    zIndex: 100,
+    // marginBottom: 15,
+  },
+  profileImage: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 43,
+    height: 43,
+    borderRadius: 100,
+    borderWidth: 4,
+    borderColor: '#8b5014',
   },
 });
 
