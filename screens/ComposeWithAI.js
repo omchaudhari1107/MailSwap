@@ -1,20 +1,18 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  Dimensions,
   ScrollView,
+  Dimensions,
   Image,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.9;
 const HEADER_HEIGHT = Platform.OS === 'ios' ? height * 0.08 : height * 0.06;
 const isTablet = width > 768;
 
@@ -23,41 +21,103 @@ const ComposeWithAI = ({ navigation, route }) => {
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [generatedEmails, setGeneratedEmails] = useState([]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [generatedEmail, setGeneratedEmail] = useState('');
+  const [displayedEmail, setDisplayedEmail] = useState('');
   const [showGenerateButton, setShowGenerateButton] = useState(true);
-  const flatListRef = useRef(null);
+  const [selectedTone, setSelectedTone] = useState('Professional');
+  const [selectedLength, setSelectedLength] = useState('Medium');
+  const [isTyping, setIsTyping] = useState(false);
+  const generatedEmailRef = useRef(null);
   
   const user = route.params?.user || {};
 
-  const generateEmails = () => {
-    const mockEmails = [
-      `Dear ${to.split('@')[0]},\n\nI hope this email finds you well. Regarding "${subject}", ${prompt}\n\nBest regards,\n${from}`,
-      `Hi ${to.split('@')[0]},\n\nI’m writing about "${subject}". ${prompt} Let me know your thoughts!\n\nCheers,\n${from}`,
-      `Hello ${to.split('@')[0]},\n\nOn the topic of "${subject}", ${prompt} Looking forward to your reply.\n\nSincerely,\n${from}`,
-      `Hey ${to.split('@')[0]},\n\nQuick note on "${subject}": ${prompt} Talk soon!\n\nRegards,\n${from}`,
-    ];
-    setGeneratedEmails(mockEmails);
-    setActiveIndex(0);
+  const tones = ['Professional', 'Casual', 'Formal', 'Brief'];
+  const lengths = ['Short', 'Medium', 'Long'];
+
+  useEffect(() => {
+    if (generatedEmail && !displayedEmail) {
+      setIsTyping(true);
+      typeWriterEffect(generatedEmail);
+    }
+  }, [generatedEmail]);
+
+  const typeWriterEffect = (text) => {
+    let i = 0;
+    const speed = 30;
+    
+    const type = () => {
+      if (i < text.length) {
+        setDisplayedEmail(text.substring(0, i + 1));
+        setGeneratedEmail(text.substring(0, i + 1));
+        i++;
+        setTimeout(type, speed);
+      } else {
+        setIsTyping(false);
+      }
+    };
+    
+    type();
+  };
+
+  const generateEmail = () => {
+    let emailContent = '';
+    let generatedSubject = '';
+    const recipient = to.split('@')[0] || 'Recipient';
+
+    // Incorporate selectedLength into the generation logic as a style hint
+    switch (selectedTone) {
+      case 'Professional':
+        generatedSubject = `Regarding ${prompt}`;
+        if (selectedLength === 'Short') {
+          emailContent = `Dear ${recipient},\n\nRegarding "${prompt}", please let me know your availability.\n\nBest,\n${from}`;
+        } else if (selectedLength === 'Medium') {
+          emailContent = `Dear ${recipient},\n\nI hope this email finds you well. Regarding "${prompt}", I would like to discuss further details at your convenience.\n\nBest regards,\n${from}`;
+        } else { // Long
+          emailContent = `Dear ${recipient},\n\nI hope this email finds you in good spirits. I am reaching out regarding "${prompt}". I believe it would be beneficial for us to discuss this matter in detail, and I would greatly appreciate the opportunity to coordinate with you at your earliest convenience. Please let me know what works best for your schedule.\n\nBest regards,\n${from}`;
+        }
+        break;
+      case 'Casual':
+        generatedSubject = `${prompt} - Quick Chat`;
+        if (selectedLength === 'Short') {
+          emailContent = `Hi ${recipient},\n\nAbout "${prompt}"—wanna chat?\n\nCheers,\n${from}`;
+        } else if (selectedLength === 'Medium') {
+          emailContent = `Hi ${recipient},\n\nI’m writing about "${prompt}". Let’s catch up soon—thoughts?\n\nCheers,\n${from}`;
+        } else { // Long
+          emailContent = `Hey ${recipient},\n\nJust dropping you a note about "${prompt}". I’d love to catch up and chat about it whenever you’ve got a moment. Let me know what works for you—looking forward to it!\n\nCheers,\n${from}`;
+        }
+        break;
+      case 'Formal':
+        generatedSubject = `Subject: ${prompt}`;
+        if (selectedLength === 'Short') {
+          emailContent = `Dear ${recipient},\n\nRe: "${prompt}", I seek your input.\n\nSincerely,\n${from}`;
+        } else if (selectedLength === 'Medium') {
+          emailContent = `Hello ${recipient},\n\nOn the topic of "${prompt}", I am writing to seek your input and coordinate next steps. Looking forward to your reply.\n\nSincerely,\n${from}`;
+        } else { // Long
+          emailContent = `Dear ${recipient},\n\nI trust this message finds you well. I am writing to you with regard to "${prompt}". It is my intention to seek your valuable input and to establish the necessary next steps for proceeding forward. I would be most grateful if you could provide your availability for a detailed discussion at your earliest convenience.\n\nSincerely,\n${from}`;
+        }
+        break;
+      case 'Brief':
+        generatedSubject = `${prompt}`;
+        if (selectedLength === 'Short') {
+          emailContent = `Hey ${recipient},\n\n"${prompt}"—talk soon?\n\n${from}`;
+        } else if (selectedLength === 'Medium') {
+          emailContent = `Hey ${recipient},\n\nQuick note on "${prompt}": let’s talk soon!\n\nRegards,\n${from}`;
+        } else { // Long
+          emailContent = `Hey ${recipient},\n\nJust a quick heads-up about "${prompt}". I’d like to touch base with you soon to go over it—nothing urgent, just want to make sure we’re on the same page. Let me know when you’re free!\n\nRegards,\n${from}`;
+        }
+        break;
+    }
+
+    setSubject(generatedSubject);
+    setGeneratedEmail(emailContent);
+    setDisplayedEmail('');
     setShowGenerateButton(false);
-    if (flatListRef.current) {
-      flatListRef.current.scrollToIndex({ index: 0, animated: false });
-    }
   };
 
-  const handleScroll = (event) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(offsetX / CARD_WIDTH);
-    if (newIndex !== activeIndex && newIndex >= 0 && newIndex < generatedEmails.length) {
-      setActiveIndex(newIndex);
-    }
+  const handleEmailChange = (text) => {
+    setGeneratedEmail(text);
+    setDisplayedEmail(text);
   };
-
-  const renderEmailCard = ({ item }) => (
-    <View style={styles.emailCard}>
-      <Text style={styles.emailContent}>{item}</Text>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
@@ -86,8 +146,8 @@ const ComposeWithAI = ({ navigation, route }) => {
           <Text style={styles.label}>From</Text>
           <TextInput
             style={styles.input}
-            value={from}
-            onChangeText={setFrom}
+            value={user.email || from}
+            editable={false}
             placeholder="Your email"
             placeholderTextColor="#5f6368"
           />
@@ -104,74 +164,103 @@ const ComposeWithAI = ({ navigation, route }) => {
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Subject</Text>
-          <TextInput
-            style={styles.input}
-            value={subject}
-            onChangeText={setSubject}
-            placeholder="Subject"
-            placeholderTextColor="#5f6368"
-          />
-        </View>
+        {!generatedEmail && (
+          <>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Prompt</Text>
+              <TextInput
+                style={[styles.input, styles.promptInput]}
+                value={prompt}
+                onChangeText={setPrompt}
+                placeholder="e.g., Request a meeting next week"
+                placeholderTextColor="#5f6368"
+                multiline
+              />
+            </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Prompt</Text>
-          <TextInput
-            style={[styles.input, styles.promptInput]}
-            value={prompt}
-            onChangeText={setPrompt}
-            placeholder="e.g., Request a meeting next week"
-            placeholderTextColor="#5f6368"
-            multiline
-          />
-        </View>
+            <View style={styles.tagContainer}>
+              {tones.map(tone => (
+                <TouchableOpacity
+                  key={tone}
+                  style={[
+                    styles.tag,
+                    selectedTone === tone && styles.selectedTag,
+                  ]}
+                  onPress={() => setSelectedTone(tone)}
+                >
+                  <Text style={[
+                    styles.tagText,
+                    selectedTone === tone && styles.selectedTagText,
+                  ]}>
+                    {tone}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {showGenerateButton && (
-          <TouchableOpacity style={styles.generateButton} onPress={generateEmails}>
+            <View style={styles.tagContainer}>
+              {lengths.map(length => (
+                <TouchableOpacity
+                  key={length}
+                  style={[
+                    styles.tag,
+                    selectedLength === length && styles.selectedTag,
+                  ]}
+                  onPress={() => setSelectedLength(length)}
+                >
+                  <Text style={[
+                    styles.tagText,
+                    selectedLength === length && styles.selectedTagText,
+                  ]}>
+                    {length}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {showGenerateButton && !generatedEmail && (
+          <TouchableOpacity style={styles.generateButton} onPress={generateEmail}>
             <Ionicons name="sparkles" size={isTablet ? 28 : 24} color="#291609" style={styles.aiicon} />
-            <Text style={styles.generateButtonText}>Generate Emails</Text>
+            <Text style={styles.generateButtonText}>Generate Email Content</Text>
           </TouchableOpacity>
         )}
 
-        {generatedEmails.length > 0 && (
-          <View style={styles.sliderContainer}>
-            <FlatList
-              ref={flatListRef}
-              data={generatedEmails}
-              renderItem={renderEmailCard}
-              keyExtractor={(item, index) => index.toString()}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={CARD_WIDTH + width * 0.04} // Added spacing between cards
-              snapToAlignment="center"
-              decelerationRate={0.8} // Smoother deceleration
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-              contentContainerStyle={styles.sliderContent}
-              initialNumToRender={4}
-              maxToRenderPerBatch={4}
-              bounces={false} // Prevents bouncing effect
-            />
-            <View style={styles.pagination}>
-              {generatedEmails.map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.dot,
-                    { backgroundColor: index === activeIndex ? '#8b5014' : '#d3d3d3' },
-                  ]}
-                />
-              ))}
+        {generatedEmail && (
+          <View style={styles.generatedContainer}>
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Subject</Text>
+              <TextInput
+                style={styles.input}
+                value={subject}
+                onChangeText={setSubject}
+                placeholder="Subject"
+                placeholderTextColor="#5f6368"
+              />
             </View>
-            <TouchableOpacity style={styles.sendButton}>
-              <Ionicons name="send" size={isTablet ? 24 : 20} color="#291609" />
-              <Text style={styles.sendButtonText}>Send</Text>
-            </TouchableOpacity>
+            <Text style={styles.generatedLabel}>Generated Email:</Text>
+            <TextInput
+              ref={generatedEmailRef}
+              style={[styles.generated, styles.generatedInput]}
+              value={displayedEmail}
+              onChangeText={handleEmailChange}
+              multiline
+              textAlignVertical="top"
+              editable={true}
+            />
           </View>
         )}
       </ScrollView>
+
+      {generatedEmail && (
+        <View style={styles.fixedSendButtonContainer}>
+          <TouchableOpacity style={styles.sendButton}>
+            <Ionicons name="send" size={isTablet ? 24 : 20} color="#291609" />
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -207,8 +296,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: width * 0.04,
     paddingTop: HEADER_HEIGHT + 10,
-    paddingBottom: height * 0.03,
-    minHeight: height,
+    paddingBottom: height * 0.1,
   },
   inputContainer: {
     marginBottom: height * 0.02,
@@ -228,9 +316,46 @@ const styles = StyleSheet.create({
     color: '#202124',
     width: '100%',
   },
+  generated: {
+    backgroundColor: '#f8e5d6',
+    borderRadius: 8,
+    padding: isTablet ? 16 : 12,
+    fontSize: isTablet ? 18 : 16,
+    color: '#202124',
+    minHeight: isTablet ? 100 : 80,
+  },
+  generatedInput: {
+    textAlignVertical: 'top',
+    height: undefined,
+  },
   promptInput: {
     height: isTablet ? 150 : 100,
     textAlignVertical: 'top',
+  },
+  tagContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    marginBottom: height * 0.02,
+  },
+  tag: {
+    backgroundColor: '#f1f3f4',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  selectedTag: {
+    backgroundColor: '#ffdbc1',
+  },
+  tagText: {
+    color: '#5f6368',
+    fontSize: isTablet ? 14 : 12,
+    fontWeight: '500',
+  },
+  selectedTagText: {
+    color: '#291609',
   },
   generateButton: {
     backgroundColor: '#ffdbc1',
@@ -245,35 +370,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    marginTop: height * 0.02,
-    width: isTablet ? '60%' : '80%',
+    width: isTablet ? '100%' : '100%',
     alignSelf: 'center',
+    marginBottom: height * 0.02,
   },
   generateButtonText: {
     color: '#291609',
     fontSize: isTablet ? 18 : 16,
     fontWeight: '600',
   },
-  sliderContainer: {
-    marginTop: height * 0.03,
-    width: '100%',
-  },
-  emailCard: {
-    width: CARD_WIDTH,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: isTablet ? 20 : 16,
-    marginHorizontal: width * 0.02, // Added horizontal margin for spacing
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  emailContent: {
+  generatedLabel: {
     fontSize: isTablet ? 16 : 14,
-    color: '#202124',
-    lineHeight: isTablet ? 24 : 20,
+    color: '#5f6368',
+    fontWeight: '500',
+    marginBottom: height * 0.005,
+  },
+  fixedSendButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    paddingHorizontal: width * 0.04,
   },
   sendButton: {
     flexDirection: 'row',
@@ -282,28 +399,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffdbc1',
     borderRadius: 8,
     paddingVertical: isTablet ? 14 : 12,
-    marginTop: height * 0.02,
-    marginHorizontal: width * 0.04,
+    elevation: 7,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   sendButtonText: {
     color: '#291609',
     fontSize: isTablet ? 16 : 14,
     fontWeight: '600',
     marginLeft: 8,
-  },
-  sliderContent: {
-    paddingHorizontal: width * 0.02,
-  },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginVertical: height * 0.02,
-  },
-  dot: {
-    width: isTablet ? 10 : 8,
-    height: isTablet ? 10 : 8,
-    borderRadius: isTablet ? 5 : 4,
-    marginHorizontal: width * 0.01,
   },
   boldIcon: {
     fontWeight: 'bold',
