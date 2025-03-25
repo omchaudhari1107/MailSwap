@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import RNFS from 'react-native-fs';
+import * as Sharing from 'expo-sharing'; // Added for file sharing/opening
 
 const getGoogleToken = async () => {
   try {
@@ -30,7 +31,7 @@ const getGoogleToken = async () => {
   }
 };
 
-// Request storage permissions for Android
+// Request storage permissions for Android (optional, may not be needed with expo-sharing)
 const requestStoragePermission = async () => {
   if (Platform.OS !== 'android') return true;
 
@@ -204,15 +205,15 @@ const EmailDetail = ({ route, navigation }) => {
       }
 
       const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
-      const supported = await Linking.canOpenURL(fileUri);
-      if (supported) {
-        await Linking.openURL(fileUri);
-      } else {
-        await Share.share({
-          url: fileUri,
-          title: 'Open with',
+
+      // Use expo-sharing to open/share the file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
           mimeType: mimeType,
+          dialogTitle: 'Open with', // Android-specific
         });
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device.');
       }
     } catch (error) {
       console.error('Error opening attachment:', error);
