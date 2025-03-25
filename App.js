@@ -9,7 +9,7 @@ import GoogleAuth from './screens/GoogleAuth';
 import Profile from './screens/Profile';
 import MailBox from './screens/MailBox';
 import EmailDetail from './screens/EmailDetail';
-import ComposeMail from './screens/ComposeMail';
+import ComposeWithAI from './screens/ComposeWithAI';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -73,8 +73,8 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen 
-          name="ComposeMail" 
-          component={ComposeMail}
+          name="ComposeWithAI" 
+          component={ComposeWithAI}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

@@ -830,7 +830,7 @@ return (
     )}
 
     {!isSearchFocused && !isInitialLoading && (
-      <TouchableOpacity style={styles.fab}>
+      <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('ComposeWithAI', { user })} >
         <Ionicons name="sparkles" size={24} color="#291609" style={styles.aiicon} />
         <Text style={styles.fabText}>Compose with AI</Text>
       </TouchableOpacity>
