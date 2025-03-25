@@ -20,16 +20,22 @@ import Fuse from 'fuse.js';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Token management logic
-let tokenPromise = null;
+// Token management with caching
+let tokenCache = { accessToken: null, expiresAt: 0 };
+const TOKEN_REFRESH_BUFFER = 300000; // 5 minutes buffer
 
 const getGoogleToken = async () => {
-  if (!tokenPromise) {
-    tokenPromise = GoogleSignin.getTokens().finally(() => {
-      tokenPromise = null;
-    });
+  const now = Date.now();
+  if (tokenCache.accessToken && tokenCache.expiresAt > now + TOKEN_REFRESH_BUFFER) {
+    return tokenCache;
   }
-  return tokenPromise;
+
+  const tokens = await GoogleSignin.getTokens();
+  tokenCache = {
+    accessToken: tokens.accessToken,
+    expiresAt: now + (tokens.expiresIn * 1000),
+  };
+  return tokenCache;
 };
 
 // Helper function to decode base64 data
@@ -37,14 +43,10 @@ const decodeBase64 = (base64String) => {
   try {
     const normalized = base64String.replace(/-/g, '+').replace(/_/g, '/');
     let padded = normalized;
-    while (padded.length % 4) {
-      padded += '=';
-    }
+    while (padded.length % 4) padded += '=';
     const binary = atob(padded);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return new TextDecoder().decode(bytes);
   } catch (error) {
     console.error('Error decoding base64:', error);
@@ -213,7 +215,7 @@ const LETTER_COLORS = {
 // Constants for company-specific styling
 const COMPANY_STYLES = {
   'google.com': { backgroundColor: '#fef7e0', avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' },
-  'netflix.com': { backgroundColor: '#e50914', avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico' },
+  'netflix.com': { backgroundColor: 'black', avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico' },
   'amazon.com': { backgroundColor: '#ff9900', avatar: 'https://www.amazon.com/favicon.ico' },
   'paypal.com': { backgroundColor: 'white', avatar: 'https://upload.wikimedia.org/wikipedia/commons/a/a4/Paypal_2014_logo.png' },
   'apple.com': { backgroundColor: '#000000', avatar: 'https://www.apple.com/favicon.ico' },
@@ -224,7 +226,7 @@ const COMPANY_STYLES = {
 };
 
 const MailBox = ({ route, navigation }) => {
-  const [user, setUser] = useState(route.params?.user || null);
+  const [user] = useState(route.params?.user || null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -239,89 +241,55 @@ const MailBox = ({ route, navigation }) => {
   const [selectedEmails, setSelectedEmails] = useState(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // Animation states
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Animation effect for skeleton
+  // Animation effect
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1.05,
-            duration: 400,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1.05, duration: 400, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(pulseAnim, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scaleAnim, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
         ]),
       ])
     );
-
-    if (isRefreshing || isInitialLoading) {
-      pulse.start();
-    }
-
+    if (isRefreshing || isInitialLoading) pulse.start();
     return () => pulse.stop();
   }, [pulseAnim, scaleAnim, isRefreshing, isInitialLoading]);
 
-  const pulseOpacity = pulseAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.5, 0.9],
-  });
+  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.9] });
+  const pulseScale = scaleAnim.interpolate({ inputRange: [1, 1.05], outputRange: [1, 1.05] });
 
-  const pulseScale = scaleAnim.interpolate({
-    inputRange: [1, 1.05],
-    outputRange: [1, 1.05],
-  });
-
-  // Debounce function for search
-  const debounce = (func, wait) => {
+  const debounce = useCallback((func, wait) => {
     let timeout;
     return (...args) => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
+      timeout = setTimeout(() => func(...args), wait);
     };
-  };
+  }, []);
 
-  // Search categories
-  const searchCategories = [
+  const searchCategories = useMemo(() => [
     { key: 'all', label: 'All', icon: 'search' },
     { key: 'subject', label: 'Subject', icon: 'document-text' },
     { key: 'from', label: 'From', icon: 'person' },
     { key: 'body', label: 'Content', icon: 'chatbox' },
     { key: 'attachments', label: 'Attachments', icon: 'attach' },
-  ];
+  ], []);
 
-  // Pre-process emails for search optimization
   const preprocessedEmails = useMemo(() => {
-    return emails.map((email) => ({
+    return emails.map(email => ({
       ...email,
       subject: email.subject || '',
       from: email.from || email.sender || '',
       preview: email.preview || '',
       body: email.body || '',
       time: email.time || '',
-      sender: {
-        email: email.from || '',
-        name: email.senderName || '',
-      },
+      sender: { email: email.from || '', name: email.senderName || '' },
       attachments: email.attachments || [],
       searchableContent: [
         email.subject || '',
@@ -330,16 +298,12 @@ const MailBox = ({ route, navigation }) => {
         email.body || '',
         email.time || '',
         email.senderName || '',
-        email.attachments?.map((att) => att.name).join(' ') || '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase(),
+        email.attachments?.map(att => att.name).join(' ') || '',
+      ].filter(Boolean).join(' ').toLowerCase(),
     }));
   }, [emails]);
 
-  // Fuse.js configuration
-  const fuseOptions = {
+  const fuseOptions = useMemo(() => ({
     keys: selectedCategory === 'all' ? [
       { name: 'subject', weight: 0.4 },
       { name: 'from', weight: 0.3 },
@@ -355,120 +319,95 @@ const MailBox = ({ route, navigation }) => {
     includeMatches: true,
     minMatchCharLength: 1,
     shouldSort: true,
-  };
-
-  const fetchGoogleProfile = async (emailAddress) => {
-    try {
-      const tokens = await getGoogleToken();
-      const response = await fetch(
-        `https://people.googleapis.com/v1/people:searchContacts?query=${encodeURIComponent(emailAddress)}&readMask=photos`,
-        { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
-      );
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        return data.results[0].person?.photos?.[0]?.url || null;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error fetching Google profile:', error);
-      return null;
-    }
-  };
+  }), [selectedCategory]);
 
   const fetchEmails = useCallback(async () => {
-    try {
-      const tokens = await getGoogleToken();
-      const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
-        headers: { Authorization: `Bearer ${tokens.accessToken}` },
-      });
-      const data = await response.json();
+    const tokens = await getGoogleToken();
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50', {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+    const data = await response.json();
 
-      const emailPromises = data.messages.map(async (message) => {
-        const detailResponse = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}?format=full`,
-          { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
-        );
-        const emailData = await detailResponse.json();
+    const emailPromises = data.messages.map(async message => {
+      const detailResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}?format=full`,
+        { headers: { Authorization: `Bearer ${tokens.accessToken}` } }
+      );
+      const emailData = await detailResponse.json();
 
-        const getHeader = (name) => emailData.payload.headers.find((h) => h.name === name)?.value || '';
-        const fromHeader = getHeader('From');
-        const senderMatch = fromHeader.match(/^(.*?)\s*(?:<(.+?)>)?$/);
-        const senderName = (senderMatch?.[1] || '').trim();
-        const senderEmail = (senderMatch?.[2] || senderMatch?.[1] || '').trim();
+      const getHeader = name => emailData.payload.headers.find(h => h.name === name)?.value || '';
+      const fromHeader = getHeader('From');
+      const senderMatch = fromHeader.match(/^(.*?)\s*(?:<(.+?)>)?$/);
+      const senderName = (senderMatch?.[1] || '').trim();
+      const senderEmail = (senderMatch?.[2] || senderMatch?.[1] || '').trim();
 
-        return {
-          id: emailData.id,
-          sender: fromHeader,
-          senderName: senderName || senderEmail.split('@')[0],
-          from: senderEmail,
-          subject: getHeader('Subject'),
-          preview: emailData.snippet || '',
-          body: getEmailBody(emailData.payload),
-          time: new Date(parseInt(emailData.internalDate)).toLocaleTimeString(),
-          isStarred: emailData.labelIds?.includes('STARRED') || false,
-          isRead: !emailData.labelIds?.includes('UNREAD'),
-          attachments: emailData.payload.parts ? emailData.payload.parts
-            .filter(part => part.filename || part.mimeType.startsWith('application/') || part.mimeType.startsWith('audio/') || part.mimeType.startsWith('video/') || part.mimeType.startsWith('image/'))
-            .map(part => ({
-              filename: part.filename || 'unnamed-attachment',
-              mimeType: part.mimeType,
-              attachmentId: part.body.attachmentId,
-              size: part.body.size,
-              data: part.body.data,
-            })) : [],
-        };
-      });
+      return {
+        id: emailData.id,
+        sender: fromHeader,
+        senderName: senderName || senderEmail.split('@')[0],
+        from: senderEmail,
+        subject: getHeader('Subject'),
+        preview: emailData.snippet || '',
+        body: getEmailBody(emailData.payload),
+        time: new Date(parseInt(emailData.internalDate)).toLocaleTimeString(),
+        isStarred: emailData.labelIds?.includes('STARRED') || false,
+        isRead: !emailData.labelIds?.includes('UNREAD'),
+        attachments: emailData.payload.parts?.filter(part => 
+          part.filename || part.mimeType.match(/^(application|audio|video|image)/)
+        ).map(part => ({
+          filename: part.filename || 'unnamed-attachment',
+          mimeType: part.mimeType,
+          attachmentId: part.body.attachmentId,
+          size: part.body.size,
+          data: part.body.data,
+        })) || [],
+      };
+    });
 
-      const formattedEmails = await Promise.all(emailPromises);
-      setEmails(formattedEmails);
-      return formattedEmails;
-    } catch (error) {
-      console.error('Error fetching emails:', error);
-      return [];
-    }
+    const formattedEmails = await Promise.all(emailPromises);
+    setEmails(formattedEmails);
+    return formattedEmails;
   }, []);
 
-  const deleteEmails = async (emailIds) => {
+  const batchModifyEmails = async (emailIds, modifications) => {
     try {
       const { accessToken } = await getGoogleToken();
-      if (!accessToken) {
-        throw new Error('No access token available');
-      }
-
-      const deletePromises = emailIds.map(async (emailId) => {
-        const response = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/trash`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error?.message || 'Failed to delete email');
+      const response = await fetch(
+        'https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ids: emailIds,
+            ...modifications,
+          }),
         }
-      });
-
-      await Promise.all(deletePromises);
-
-      setEmails((currentEmails) =>
-        currentEmails.filter((email) => !emailIds.includes(email.id))
       );
-      setSelectedEmails(new Set());
-      setIsSelectionMode(false);
 
-      Alert.alert('Success', `${emailIds.length} email${emailIds.length > 1 ? 's' : ''} moved to Trash`);
+      if (!response.ok) throw new Error('Batch modify failed');
       return true;
     } catch (error) {
-      console.error('Error deleting emails:', error);
-      Alert.alert('Error', 'Failed to delete emails: ' + error.message);
+      console.error('Batch modify error:', error);
       return false;
     }
   };
+
+  const deleteEmails = useCallback(async (emailIds) => {
+    try {
+      const success = await batchModifyEmails(emailIds, { addLabelIds: ['TRASH'] });
+      if (success) {
+        setEmails(prev => prev.filter(email => !emailIds.includes(email.id)));
+        setSelectedEmails(new Set());
+        setIsSelectionMode(false);
+        Alert.alert('Success', `${emailIds.length} email${emailIds.length > 1 ? 's' : ''} moved to Trash`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete emails');
+    }
+  }, []);
 
   useEffect(() => {
     const loadEmails = async () => {
@@ -477,14 +416,11 @@ const MailBox = ({ route, navigation }) => {
       setIsInitialLoading(false);
     };
     loadEmails();
-  }, [fetchEmails]);
-
-  useEffect(() => {
     GoogleSignin.configure({
       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
       offlineAccess: true,
     });
-  }, []);
+  }, [fetchEmails]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -492,110 +428,71 @@ const MailBox = ({ route, navigation }) => {
     setIsRefreshing(false);
   }, [fetchEmails]);
 
-  const parseSearchQuery = (query) => {
+  const parseSearchQuery = useCallback(query => {
     const terms = [];
     const excludeTerms = [];
     let fieldSpecific = null;
 
     const fieldMatch = query.match(/^(from|subject|body|attachments):(.+)/i);
-    if (fieldMatch) {
-      fieldSpecific = { field: fieldMatch[1].toLowerCase(), value: fieldMatch[2].trim() };
-      return { terms, excludeTerms, fieldSpecific };
-    }
+    if (fieldMatch) return { terms, excludeTerms, fieldSpecific: { field: fieldMatch[1].toLowerCase(), value: fieldMatch[2].trim() } };
 
     const parts = query.match(/"[^"]*"|[^\s"]+/g) || [];
-    parts.forEach((part) => {
+    parts.forEach(part => {
       part = part.replace(/^"|"$/g, '').trim();
-      if (part.startsWith('-')) {
-        excludeTerms.push(part.slice(1).toLowerCase());
-      } else {
-        terms.push(part.toLowerCase());
-      }
+      if (part.startsWith('-')) excludeTerms.push(part.slice(1).toLowerCase());
+      else terms.push(part.toLowerCase());
     });
 
     return { terms, excludeTerms, fieldSpecific };
-  };
+  }, []);
 
-  const handleSearch = (query) => {
+  const handleSearch = useCallback(query => {
     setSearchQuery(query);
     setIsSearching(!!query.trim());
+    if (!query.trim()) {
+      setSearchResults([]);
+      setIsSearchLoading(false);
+    } else {
+      setIsSearchLoading(true);
+      debouncedSearch(query);
+    }
+  }, []);
 
+  const performSearch = useCallback(query => {
     if (!query.trim()) {
       setSearchResults([]);
       setIsSearchLoading(false);
       return;
     }
 
-    setIsSearchLoading(true);
-    debouncedSearch(query);
-  };
+    const { terms, excludeTerms, fieldSpecific } = parseSearchQuery(query);
+    const fuse = new Fuse(preprocessedEmails, fuseOptions);
+    let results = fieldSpecific 
+      ? fuse.search(fieldSpecific.value) 
+      : fuse.search(terms.join(' '));
 
-  const performSearch = (query) => {
-    try {
-      if (!query.trim()) {
-        setSearchResults([]);
-        setIsSearchLoading(false);
-        return;
-      }
-
-      const { terms, excludeTerms, fieldSpecific } = parseSearchQuery(query);
-      const fuse = new Fuse(preprocessedEmails, fuseOptions);
-      let results = [];
-
-      if (fieldSpecific) {
-        results = fuse.search(fieldSpecific.value).map(result => ({
-          ...result.item,
-          searchScore: result.score,
-          matches: result.matches,
-        }));
-      } else {
-        const searchQuery = terms.join(' ');
-        results = fuse.search(searchQuery).map(result => ({
-          ...result.item,
-          searchScore: result.score,
-          matches: result.matches,
-        }));
-      }
-
-      if (excludeTerms.length > 0) {
-        results = results.filter((result) => {
-          const content = result.searchableContent;
-          return !excludeTerms.some(term => content.includes(term));
-        });
-      }
-
-      if (results.length === 0 && !fieldSpecific) {
-        const lenientFuse = new Fuse(preprocessedEmails, {
-          ...fuseOptions,
-          threshold: 0.6,
-          minMatchCharLength: 1,
-        });
-        results = lenientFuse.search(query).map(result => ({
-          ...result.item,
-          searchScore: result.score,
-          matches: result.matches,
-        }));
-      }
-
-      setSearchResults(results.slice(0, 20));
-    } catch (error) {
-      console.error('Search error:', error);
-      setSearchResults([]);
-      Alert.alert('Search Error', 'Failed to perform search. Please try again.');
-    } finally {
-      setIsSearchLoading(false);
+    if (excludeTerms.length) {
+      results = results.filter(result => !excludeTerms.some(term => result.item.searchableContent.includes(term)));
     }
-  };
 
-  const debouncedSearch = useMemo(() => debounce(performSearch, 300), [preprocessedEmails, selectedCategory]);
+    if (!results.length && !fieldSpecific) {
+      const lenientFuse = new Fuse(preprocessedEmails, { ...fuseOptions, threshold: 0.6 });
+      results = lenientFuse.search(query);
+    }
 
-  const handleSearchSubmit = async () => {
+    setSearchResults(results.slice(0, 20).map(r => ({ ...r.item, searchScore: r.score, matches: r.matches })));
+    setIsSearchLoading(false);
+  }, [preprocessedEmails, fuseOptions]);
+
+  const debouncedSearch = useMemo(() => debounce(performSearch, 300), [performSearch]);
+
+  const handleSearchSubmit = useCallback(async () => {
     if (searchQuery.trim() && !recentSearches.includes(searchQuery)) {
       const newSearches = [searchQuery, ...recentSearches.slice(0, 9)];
       setRecentSearches(newSearches);
-      await saveRecentSearches(newSearches);
+      await AsyncStorage.setItem('recentSearches', JSON.stringify(newSearches));
     }
-  };
+  }, [searchQuery, recentSearches]);
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -613,559 +510,333 @@ const MailBox = ({ route, navigation }) => {
       }
       return false;
     });
-
     return () => backHandler.remove();
-  }, [isSearchFocused, isSearching, searchQuery, isSelectionMode]);
+  }, [isSearchFocused.anagan]);
 
-  const handleDeleteEmail = (emailId) => {
-    setEmails((currentEmails) => currentEmails.filter((email) => email.id !== emailId));
-  };
-
-  const handleToggleStar = (emailId) => {
-    setEmails((currentEmails) =>
-      currentEmails.map((email) =>
-        email.id === emailId ? { ...email, isStarred: !email.isStarred } : email
-      )
-    );
-  };
-
-  const clearRecentSearch = async (searchToRemove) => {
-    const newSearches = recentSearches.filter((search) => search !== searchToRemove);
-    setRecentSearches(newSearches);
-    await saveRecentSearches(newSearches);
-  };
-
-  const clearAllRecentSearches = async () => {
-    setRecentSearches([]);
-    await AsyncStorage.removeItem('recentSearches');
-  };
-
-  const handleAvatarPress = (emailId) => {
-    setSelectedEmails((prev) => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(emailId)) {
-        newSelected.delete(emailId);
-      } else {
-        newSelected.add(emailId);
-      }
-      setIsSelectionMode(newSelected.size > 0);
-      return newSelected;
-    });
-  };
-
-  const handleLongPress = (emailId) => {
-    if (!isSelectionMode) {
-      setIsSelectionMode(true);
-      setSelectedEmails(new Set([emailId]));
-    }
-  };
-
-  const clearSelection = () => {
-    setSelectedEmails(new Set());
-    setIsSelectionMode(false);
-  };
-
-  const handleSelectAll = () => {
-    if (selectedEmails.size === displayedEmails.length) {
-      setSelectedEmails(new Set());
-    } else {
-      setSelectedEmails(new Set(displayedEmails.map(email => email.id)));
-    }
-  };
-
-  const displayedEmails = isSearching ? searchResults : emails;
-
-  const updateEmailReadStatus = async (emailId, markAsRead = true) => {
-    try {
-      const { accessToken } = await getGoogleToken();
-      if (!accessToken) {
-        throw new Error('No access token available');
-      }
-
-      const response = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            removeLabelIds: markAsRead ? ['UNREAD'] : [],
-            addLabelIds: markAsRead ? [] : ['UNREAD'],
-          }),
-        }
-      );
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('API Error Response:', data);
-        throw new Error(data.error?.message || 'Failed to update email status');
-      }
-
-      setEmails((currentEmails) =>
-        currentEmails.map((email) =>
-          email.id === emailId ? { ...email, isRead: markAsRead } : email
-        )
-      );
-
+useEffect(() => {
+  const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+    if (isSelectionMode) {
+      clearSelection();
       return true;
-    } catch (error) {
-      console.error('Error updating email read status:', error);
-      if (error.message.includes('401') || error.message.includes('invalid_token')) {
-        try {
-          await GoogleSignin.signInSilently();
-          return updateEmailReadStatus(emailId, markAsRead);
-        } catch (refreshError) {
-          console.error('Error refreshing token:', refreshError);
-        }
-      }
-      return false;
     }
+    if (isSearchFocused || isSearching || searchQuery.length > 0) {
+      setSearchQuery('');
+      setSearchResults([]);
+      setIsSearching(false);
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
+      return true;
+    }
+    return false;
+  });
+  return () => backHandler.remove();
+}, [isSearchFocused, isSearching, searchQuery, isSelectionMode]);
+
+const handleToggleStar = useCallback(emailId => {
+  setEmails(prev => prev.map(email => 
+    email.id === emailId ? { ...email, isStarred: !email.isStarred } : email
+  ));
+}, []);
+
+const clearSelection = useCallback(() => {
+  setSelectedEmails(new Set());
+  setIsSelectionMode(false);
+}, []);
+
+const handleSelectAll = useCallback(() => {
+  setSelectedEmails(prev => {
+    if (prev.size === displayedEmails.length) return new Set();
+    return new Set(displayedEmails.map(email => email.id));
+  });
+}, [displayedEmails]);
+
+const updateEmailReadStatus = useCallback(async (emailIds, markAsRead = true) => {
+  const success = await batchModifyEmails(emailIds, {
+    removeLabelIds: markAsRead ? ['UNREAD'] : [],
+    addLabelIds: markAsRead ? [] : ['UNREAD'],
+  });
+  
+  if (success) {
+    setEmails(prev => prev.map(email => 
+      emailIds.includes(email.id) ? { ...email, isRead: markAsRead } : email
+    ));
+  }
+  return success;
+}, []);
+
+const displayedEmails = isSearching ? searchResults : emails;
+
+const renderSkeletonItem = () => (
+  <Animated.View style={[styles.emailItem, { opacity: pulseOpacity, transform: [{ scale: pulseScale }] }]}>
+    <View style={styles.emailLeftSection}>
+      <Animated.View style={[styles.senderIcon, { backgroundColor: '#e0e0e0', opacity: pulseOpacity }]} />
+    </View>
+    <View style={styles.emailContent}>
+      <Animated.View style={[styles.skeletonText, { width: `${Math.random() * 30 + 50}%`, height: 16, marginBottom: 4, opacity: pulseOpacity }]} />
+      <Animated.View style={[styles.skeletonText, { width: `${Math.random() * 40 + 40}%`, height: 14, opacity: pulseOpacity }]} />
+    </View>
+    <View style={styles.emailRight}>
+      <Animated.View style={[styles.skeletonText, { width: 40, height: 13, opacity: pulseOpacity }]} />
+    </View>
+  </Animated.View>
+);
+
+const renderEmailItem = useCallback(({ item }) => {
+  const getAvatarAndColor = () => {
+    const senderEmail = String(item.from || item.sender || '');
+    const senderName = item.senderName || senderEmail.split('@')[0] || '';
+    const domain = senderEmail.split('@')[1]?.split('.').slice(-2).join('.');
+    const companyStyle = COMPANY_STYLES[domain];
+    if (companyStyle) return { avatarSource: companyStyle.avatar, backgroundColor: companyStyle.backgroundColor, isLetter: false };
+
+    const firstLetter = senderName[0]?.toUpperCase();
+    return firstLetter && /[a-zA-Z]/.test(firstLetter)
+      ? { avatarSource: firstLetter, backgroundColor: LETTER_COLORS[firstLetter] || '#D3D3D3', isLetter: true }
+      : { avatarSource: 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png', backgroundColor: '#D3D3D3', isLetter: false };
   };
 
-  const renderSkeletonItem = () => (
-    <Animated.View
-      style={[
-        styles.emailItem,
-        {
-          opacity: pulseOpacity,
-          transform: [{ scale: pulseScale }],
-        },
-      ]}
-    >
-      <View style={styles.emailLeftSection}>
-        <Animated.View
-          style={[
-            styles.senderIcon,
-            { backgroundColor: '#e0e0e0', opacity: pulseOpacity },
-          ]}
-        />
-      </View>
-      <View style={styles.emailContent}>
-        <Animated.View
-          style={[
-            styles.skeletonText,
-            { width: `${Math.random() * 30 + 50}%`, height: 16, marginBottom: 4, opacity: pulseOpacity },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.skeletonText,
-            { width: `${Math.random() * 40 + 40}%`, height: 14, opacity: pulseOpacity },
-          ]}
-        />
-      </View>
-      <View style={styles.emailRight}>
-        <Animated.View
-          style={[
-            styles.skeletonText,
-            { width: 40, height: 13, opacity: pulseOpacity },
-          ]}
-        />
-      </View>
-    </Animated.View>
-  );
+  const highlightText = (text, query) => {
+    if (!query || !text) return <Text>{text}</Text>;
+    const { terms } = parseSearchQuery(query);
+    if (!terms.length) return <Text>{text}</Text>;
 
-  const renderEmailItem = ({ item, index }) => {
-    const getAvatarAndColor = () => {
-      const senderEmail = String(item.from || item.sender || '');
-      const senderName = item.senderName || senderEmail.split('@')[0] || '';
-      const domain = senderEmail.split('@')[1];
-      if (domain) {
-        const domainBase = domain.split('.').slice(-2).join('.');
-        const companyStyle = COMPANY_STYLES[domainBase];
-        if (companyStyle) {
-          return {
-            avatarSource: companyStyle.avatar,
-            backgroundColor: companyStyle.backgroundColor,
-            isLetter: false,
-          };
-        }
-      }
+    const parts = text.split(new RegExp(`(${terms.join('|')})`, 'gi'));
+    return (
+      <Text>
+        {parts.map((part, i) => 
+          terms.some(t => t.toLowerCase() === part.toLowerCase()) 
+            ? <Text key={i} style={styles.highlightedText}>{part}</Text> 
+            : part
+        )}
+      </Text>
+    );
+  };
 
-      const firstWord = senderName.split(' ')[0];
-      const firstLetter = firstWord[0].toUpperCase();
-
-      if (firstLetter && firstLetter.match(/[a-zA-Z]/)) {
-        const color = LETTER_COLORS[firstLetter] || '#D3D3D3';
-        return {
-          avatarSource: firstLetter,
-          backgroundColor: color,
-          isLetter: true,
-        };
-      }
-
-      return {
-        avatarSource: 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png',
-        backgroundColor: '#D3D3D3',
-        isLetter: false,
-      };
-    };
-
-    const highlightText = (text, query) => {
-      if (!query || !text) return <Text>{text}</Text>;
-      const { terms } = parseSearchQuery(query);
-      if (!terms.length) return <Text>{text}</Text>;
-
-      let highlighted = text;
-      terms.forEach((term) => {
-        const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedTerm})`, 'gi');
-        highlighted = highlighted.replace(regex, `<HIGHLIGHT>$1</HIGHLIGHT>`);
+  const handlePress = async () => {
+    if (isSelectionMode) {
+      handleAvatarPress(item.id);
+    } else {
+      if (!item.isRead) await updateEmailReadStatus([item.id], true);
+      navigation.navigate('EmailDetail', {
+        email: { ...item, attachments: item.attachments || [] },
+        onDelete: () => setEmails(prev => prev.filter(e => e.id !== item.id)),
+        onToggleStar: handleToggleStar,
+        avatarInfo: getAvatarAndColor(),
       });
-
-      const parts = highlighted.split(/<HIGHLIGHT>(.*?)<\/HIGHLIGHT>/);
-      return (
-        <Text>
-          {parts.map((part, index) =>
-            index % 2 === 0 ? (
-              part
-            ) : (
-              <Text key={index} style={styles.highlightedText}>
-                {part}
-              </Text>
-            )
-          )}
-        </Text>
-      );
-    };
-
-    const handlePress = async () => {
-      if (isSelectionMode && selectedEmails.has(item.id)) {
-        handleAvatarPress(item.id);
-      } else {
-        if (!item.isRead) {
-          await updateEmailReadStatus(item.id, true);
-        }
-        navigation.navigate('EmailDetail', {
-          email: {
-            ...item,
-            attachments: item.attachments || [],
-          },
-          onDelete: handleDeleteEmail,
-          onToggleStar: handleToggleStar,
-          avatarInfo: getAvatarAndColor(),
-        });
-      }
-    };
-
-    const { avatarSource, backgroundColor, isLetter } = getAvatarAndColor();
-    const isSelected = selectedEmails.has(item.id);
-
-    return (
-      <TouchableOpacity
-        style={[styles.emailItem, !item.isRead && styles.unreadEmail]}
-        onPress={handlePress}
-        onLongPress={() => handleLongPress(item.id)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.emailLeftSection}>
-          <TouchableOpacity
-            onPress={() => handleAvatarPress(item.id)}
-            style={styles.avatarContainer}
-          >
-            {isSelected ? (
-              <View style={[styles.checkbox, styles.checkboxSelected]}>
-                <Ionicons name="checkmark" size={18} color="#fff" style={styles.boldIcon} />
-              </View>
-            ) : (
-              <View style={[styles.senderIcon, { backgroundColor }]}>
-                {isLetter ? (
-                  <Text style={styles.avatarLetter}>{avatarSource}</Text>
-                ) : typeof avatarSource === 'string' && avatarSource.startsWith('http') ? (
-                  <Image
-                    source={{ uri: avatarSource }}
-                    style={styles.avatarImage}
-                    defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }}
-                  />
-                ) : (
-                  <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
-                )}
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-        <View style={styles.emailContent}>
-          <Text
-            style={[styles.senderName, !item.isRead && styles.unreadText]}
-            numberOfLines={1}
-          >
-            {highlightText(item.senderName || item.from, searchQuery)}
-          </Text>
-          <View style={styles.subjectContainer}>
-            <Text
-              style={[styles.subject, !item.isRead && styles.unreadText]}
-              numberOfLines={1}
-            >
-              {highlightText(item.subject, searchQuery)}
-            </Text>
-          </View>
-          <Text style={styles.preview} numberOfLines={1}>
-            {highlightText(item.preview, searchQuery)}
-          </Text>
-        </View>
-        <View style={styles.emailRight}>
-          <Text style={[styles.time, !item.isRead && styles.unreadText]}>{item.time}</Text>
-          {item.isStarred && (
-            <Ionicons name="star" size={20} color="#f4b400" style={styles.starIcon} />
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderHeader = () => {
-    return (
-      <View style={styles.selectionHeader}>
-        <TouchableOpacity onPress={clearSelection}>
-          <Ionicons name="close" size={24} color="#000000" style={styles.boldIcon} />
-        </TouchableOpacity>
-        <Text style={styles.selectionCount}>
-          {selectedEmails.size} Selected
-        </Text>
-        <TouchableOpacity
-          onPress={() => deleteEmails([...selectedEmails])}
-          disabled={selectedEmails.size === 0}
-        >
-          <Ionicons
-            name="trash-outline"
-            size={24}
-            color={selectedEmails.size > 0 ? "#1c1a17" : "#000000"}
-            style={styles.boldIcon}
-          />
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  const renderListHeader = () => {
-    if (!isSelectionMode) return null;
-    return (
-      <TouchableOpacity style={styles.selectAllRow} onPress={handleSelectAll}>
-        <Ionicons
-          name={selectedEmails.size === displayedEmails.length && displayedEmails.length > 0 ? "checkbox" : "square-outline"}
-          size={24}
-          color="#000000"
-          style={styles.boldIcon}
-        />
-        <Text style={styles.selectAllText}>Select All</Text>
-      </TouchableOpacity>
-    );
-  };
-
-  useEffect(() => {
-    loadRecentSearches();
-  }, []);
-
-  const loadRecentSearches = async () => {
-    try {
-      const savedSearches = await AsyncStorage.getItem('recentSearches');
-      if (savedSearches) {
-        setRecentSearches(JSON.parse(savedSearches));
-      }
-    } catch (error) {
-      console.error('Error loading recent searches:', error);
     }
   };
 
-  const saveRecentSearches = async (searches) => {
-    try {
-      await AsyncStorage.setItem('recentSearches', JSON.stringify(searches));
-    } catch (error) {
-      console.error('Error saving recent searches:', error);
-    }
-  };
+  const { avatarSource, backgroundColor, isLetter } = getAvatarAndColor();
+  const isSelected = selectedEmails.has(item.id);
 
   return (
-    <View style={styles.container}>
-      <StatusBar
-        backgroundColor={'#fef9f3'}
-        barStyle="dark-content"
-      />
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          {isSelectionMode ? (
-            renderHeader()
+    <TouchableOpacity
+      style={[styles.emailItem, !item.isRead && styles.unreadEmail]}
+      onPress={handlePress}
+      onLongPress={() => !isSelectionMode && (setIsSelectionMode(true), setSelectedEmails(new Set([item.id])))}
+      activeOpacity={0.8}
+    >
+      <View style={styles.emailLeftSection}>
+        <TouchableOpacity onPress={() => handleAvatarPress(item.id)} style={styles.avatarContainer}>
+          {isSelected ? (
+            <View style={[styles.checkbox, styles.checkboxSelected]}>
+              <Ionicons name="checkmark" size={18} color="#fff" style={styles.boldIcon} />
+            </View>
           ) : (
-            <TouchableOpacity style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#000000" style={styles.boldIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search in mail"
-                value={searchQuery}
-                onChangeText={handleSearch}
-                onSubmitEditing={handleSearchSubmit}
-                onFocus={() => setIsSearchFocused(true)}
-                placeholderTextColor="#5f6368"
-                autoCapitalize="none"
-                returnKeyType="search"
-                accessibilityLabel="Search emails"
-                accessibilityRole="search"
-              />
-              {(searchQuery.length > 0 || isSearchFocused) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSearchQuery('');
-                    setSearchResults([]);
-                    setIsSearching(false);
-                    setIsSearchFocused(false);
-                    Keyboard.dismiss();
-                  }}
-                >
-                  <Ionicons name="close-circle" size={20} color="#000000" style={styles.boldIcon} />
-                </TouchableOpacity>
+            <View style={[styles.senderIcon, { backgroundColor }]}>
+              {isLetter ? (
+                <Text style={styles.avatarLetter}>{avatarSource}</Text>
+              ) : avatarSource.startsWith('http') ? (
+                <Image source={{ uri: avatarSource }} style={styles.avatarImage} defaultSource={{ uri: 'https://cdn-icons-png.flaticon.com/512/36/36183.png' }} />
+              ) : (
+                <Ionicons name="person" size={24} color="#000000" style={styles.boldIcon} />
               )}
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity
-          style={styles.profileHeader}
-          onPress={() => navigation.navigate('Profile', { user })}
-        >
-          <Image
-            source={{ uri: user.photo || user.photoURL }}
-            style={styles.profileImage}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {isSearchFocused && (
-        <View style={styles.searchOverlay}>
-          <View style={styles.categoryContainer}>
-            {searchCategories.map((category) => (
-              <TouchableOpacity
-                key={category.key}
-                style={[
-                  styles.categoryChip,
-                  selectedCategory === category.key && styles.selectedCategoryChip,
-                ]}
-                onPress={() => {
-                  setSelectedCategory(category.key);
-                  if (searchQuery) handleSearch(searchQuery);
-                }}
-                accessibilityLabel={`Search by ${category.label}`}
-                accessibilityRole="button"
-              >
-                <Ionicons
-                  name={category.icon}
-                  size={16}
-                  color={selectedCategory === category.key ? '#1a73e8' : '#5f6368'}
-                />
-                <Text
-                  style={[
-                    styles.categoryChipText,
-                    selectedCategory === category.key && styles.selectedCategoryChipText,
-                  ]}
-                >
-                  {category.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {!searchQuery && recentSearches.length > 0 && (
-            <View style={styles.recentSearchesContainer}>
-              <View style={styles.recentSearchesHeader}>
-                <Text style={styles.recentSearchesTitle}>Recent Searches</Text>
-                <TouchableOpacity onPress={clearAllRecentSearches}>
-                  <Text style={styles.clearAllText}>Clear All</Text>
-                </TouchableOpacity>
-              </View>
-              {recentSearches.map((search, index) => (
-                <View key={index} style={styles.recentSearchItem}>
-                  <TouchableOpacity
-                    style={styles.recentSearchContent}
-                    onPress={() => {
-                      setSearchQuery(search);
-                      handleSearch(search);
-                    }}
-                    accessibilityLabel={`Recent search: ${search}`}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="time-outline" size={16} color="#5f6368" />
-                    <Text style={styles.recentSearchText}>{search}</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color="#5f6368"
-                      style={styles.recentSearchArrow}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => clearRecentSearch(search)}
-                    style={styles.clearSearchButton}
-                    accessibilityLabel={`Clear recent search: ${search}`}
-                    accessibilityRole="button"
-                  >
-                    <Ionicons name="close" size={16} color="#5f6368" />
-                  </TouchableOpacity>
-                </View>
-              ))}
             </View>
           )}
+        </TouchableOpacity>
+      </View>
+      <View style={styles.emailContent}>
+        <Text style={[styles.senderName, !item.isRead && styles.unreadText]} numberOfLines={1}>
+          {highlightText(item.senderName || item.from, searchQuery)}
+        </Text>
+        <View style={styles.subjectContainer}>
+          <Text style={[styles.subject, !item.isRead && styles.unreadText]} numberOfLines={1}>
+            {highlightText(item.subject, searchQuery)}
+          </Text>
+        </View>
+        <Text style={styles.preview} numberOfLines={1}>
+          {highlightText(item.preview, searchQuery)}
+        </Text>
+      </View>
+      <View style={styles.emailRight}>
+        <Text style={[styles.time, !item.isRead && styles.unreadText]}>{item.time}</Text>
+        {item.isStarred && <Ionicons name="star" size={20} color="#f4b400" style={styles.starIcon} />}
+      </View>
+    </TouchableOpacity>
+  );
+}, [isSelectionMode, selectedEmails, searchQuery, handleToggleStar, navigation]);
 
-          {isSearching && !isSearchLoading && (
-            displayedEmails.length > 0 ? (
-              <FlatList
-                data={displayedEmails}
-                renderItem={renderEmailItem}
-                keyExtractor={(item) => item.id}
-                style={styles.searchResultsList}
-              />
-            ) : (
-              <View style={styles.noResultsContainer}>
-                <Ionicons name="search-outline" size={48} color="#5f6368" />
-                <Text style={styles.noResultsText}>
-                  No results found for "{searchQuery}"
-                </Text>
+const renderHeader = () => isSelectionMode && (
+  <View style={styles.selectionHeader}>
+    <TouchableOpacity onPress={clearSelection}>
+      <Ionicons name="close" size={24} color="#000000" style={styles.boldIcon} />
+    </TouchableOpacity>
+    <Text style={styles.selectionCount}>{selectedEmails.size} Selected</Text>
+    <TouchableOpacity onPress={() => deleteEmails([...selectedEmails])} disabled={!selectedEmails.size}>
+      <Ionicons name="trash-outline" size={24} color={selectedEmails.size ? "#1c1a17" : "#000000"} style={styles.boldIcon} />
+    </TouchableOpacity>
+  </View>
+);
+
+const handleAvatarPress = useCallback(emailId => {
+  setSelectedEmails(prev => {
+    const newSelected = new Set(prev);
+    newSelected.has(emailId) ? newSelected.delete(emailId) : newSelected.add(emailId);
+    setIsSelectionMode(newSelected.size > 0);
+    return newSelected;
+  });
+}, []);
+
+useEffect(() => {
+  AsyncStorage.getItem('recentSearches').then(saved => saved && setRecentSearches(JSON.parse(saved)));
+}, []);
+
+return (
+  <View style={styles.container}>
+    <StatusBar backgroundColor={'#fef9f3'} barStyle="dark-content" />
+    <View style={styles.header}>
+      <View style={styles.headerContent}>
+        {renderHeader() || (
+          <TouchableOpacity style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#000000" style={styles.boldIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search in mail"
+              value={searchQuery}
+              onChangeText={handleSearch}
+              onSubmitEditing={handleSearchSubmit}
+              onFocus={() => setIsSearchFocused(true)}
+              placeholderTextColor="#5f6368"
+              autoCapitalize="none"
+              returnKeyType="search"
+              accessibilityLabel="Search emails"
+              accessibilityRole="search"
+            />
+            {(searchQuery.length > 0 || isSearchFocused) && (
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setIsSearching(false); setIsSearchFocused(false); Keyboard.dismiss(); }}>
+                <Ionicons name="close-circle" size={20} color="#000000" style={styles.boldIcon} />
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+      <TouchableOpacity style={styles.profileHeader} onPress={() => navigation.navigate('Profile', { user })}>
+        <Image source={{ uri: user.photo || user.photoURL }} style={styles.profileImage} />
+      </TouchableOpacity>
+    </View>
+
+    {isSelectionMode && (
+      <View style={styles.fixedSelectAll}>
+        <TouchableOpacity style={styles.selectAllRow} onPress={handleSelectAll}>
+          <Ionicons
+            name={selectedEmails.size === displayedEmails.length && displayedEmails.length > 0 ? "checkbox" : "square-outline"}
+            size={24}
+            color="#000000"
+            style={styles.boldIcon}
+          />
+          <Text style={styles.selectAllText}>Select All</Text>
+        </TouchableOpacity>
+      </View>
+    )}
+
+    {isSearchFocused ? (
+      <View style={styles.searchOverlay}>
+        <View style={styles.categoryContainer}>
+          {searchCategories.map(category => (
+            <TouchableOpacity
+              key={category.key}
+              style={[styles.categoryChip, selectedCategory === category.key && styles.selectedCategoryChip]}
+              onPress={() => { setSelectedCategory(category.key); if (searchQuery) handleSearch(searchQuery); }}
+            >
+              <Ionicons name={category.icon} size={16} color={selectedCategory === category.key ? '#1a73e8' : '#5f6368'} />
+              <Text style={[styles.categoryChipText, selectedCategory === category.key && styles.selectedCategoryChipText]}>
+                {category.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {!searchQuery && recentSearches.length > 0 && (
+          <View style={styles.recentSearchesContainer}>
+            <View style={styles.recentSearchesHeader}>
+              <Text style={styles.recentSearchesTitle}>Recent Searches</Text>
+              <TouchableOpacity onPress={() => { setRecentSearches([]); AsyncStorage.removeItem('recentSearches'); }}>
+                <Text style={styles.clearAllText}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+            {recentSearches.map((search, index) => (
+              <View key={index} style={styles.recentSearchItem}>
+                <TouchableOpacity style={styles.recentSearchContent} onPress={() => { setSearchQuery(search); handleSearch(search); }}>
+                  <Ionicons name="time-outline" size={16} color="#5f6368" />
+                  <Text style={styles.recentSearchText}>{search}</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#5f6368" style={styles.recentSearchArrow} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setRecentSearches(prev => prev.filter(s => s !== search)); AsyncStorage.setItem('recentSearches', JSON.stringify(recentSearches.filter(s => s !== search))); }}>
+                  <Ionicons name="close" size={16} color="#5f6368" />
+                </TouchableOpacity>
               </View>
-            )
-          )}
+            ))}
+          </View>
+        )}
 
-          {(isSearchLoading || isInitialLoading) && (
+        {isSearching && !isSearchLoading && (
+          displayedEmails.length > 0 ? (
             <FlatList
-              data={[1, 2, 3, 4, 5]}
-              renderItem={renderSkeletonItem}
-              keyExtractor={(item) => item.toString()}
+              data={displayedEmails}
+              renderItem={renderEmailItem}
+              keyExtractor={item => item.id}
               style={styles.searchResultsList}
             />
-          )}
-        </View>
-      )}
+          ) : (
+            <View style={styles.noResultsContainer}>
+              <Ionicons name="search-outline" size={48} color="#5f6368" />
+              <Text style={styles.noResultsText}>No results found for "{searchQuery}"</Text>
+            </View>
+          )
+        )}
 
-      {!isSearchFocused && (
-        <FlatList
-          data={(isInitialLoading || isRefreshing) ? Array(8).fill({}) : displayedEmails}
-          renderItem={(isInitialLoading || isRefreshing) ? renderSkeletonItem : renderEmailItem}
-          keyExtractor={(item, index) => (isInitialLoading || isRefreshing) ? index.toString() : item.id}
-          ListHeaderComponent={renderListHeader()}
-          ListEmptyComponent={
-            !isSearchLoading && !isInitialLoading && !isRefreshing && (
-              <View style={styles.noEmailsContainer}>
-                <Text style={styles.noEmailsText}>No emails to display</Text>
-              </View>
-            )
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={['#1a73e8']}
-              tintColor="#1a73e8"
-            />
-          }
-        />
-      )}
+        {(isSearchLoading || isInitialLoading) && (
+          <FlatList
+            data={[1, 2, 3, 4, 5]}
+            renderItem={renderSkeletonItem}
+            keyExtractor={item => item.toString()}
+            style={styles.searchResultsList}
+          />
+        )}
+      </View>
+    ) : (
+      <FlatList
+        data={(isInitialLoading || isRefreshing) ? Array(8).fill({}) : displayedEmails}
+        renderItem={(isInitialLoading || isRefreshing) ? renderSkeletonItem : renderEmailItem}
+        keyExtractor={(item, index) => (isInitialLoading || isRefreshing) ? index.toString() : item.id}
+        contentContainerStyle={isSelectionMode ? styles.listWithFixedHeader : null}
+        ListEmptyComponent={!isSearchLoading && !isInitialLoading && !isRefreshing && (
+          <View style={styles.noEmailsContainer}>
+            <Text style={styles.noEmailsText}>No emails to display</Text>
+          </View>
+        )}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#1a73e8']} tintColor="#1a73e8" />}
+      />
+    )}
 
-      {!isSearchFocused && !isInitialLoading && (
-        <TouchableOpacity style={styles.fab}>
-          <Ionicons name="sparkles" size={24} color="#291609" style={styles.aiicon} />
-          <Text style={styles.fabText}>Compose with AI</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+    {!isSearchFocused && !isInitialLoading && (
+      <TouchableOpacity style={styles.fab}>
+        <Ionicons name="sparkles" size={24} color="#291609" style={styles.aiicon} />
+        <Text style={styles.fabText}>Compose with AI</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+);
 };
 
 const styles = StyleSheet.create({
@@ -1184,8 +855,8 @@ const styles = StyleSheet.create({
     zIndex: 1001,
   },
   headerContent: {
-    flex: 1, // Takes up available space, pushing profileHeader to the right
-    marginRight: 12, // Consistent spacing between content and profile image
+    flex: 1,
+    marginRight: 12,
   },
   searchBar: {
     flexDirection: 'row',
@@ -1484,6 +1155,20 @@ const styles = StyleSheet.create({
   },
   aiicon: {
     paddingRight: 10,
+  },
+  fixedSelectAll: {
+    position: 'absolute',
+    top: 80,
+    left: 14,
+    right: 0,
+    zIndex: 10,
+    marginTop: 10,
+    backgroundColor: '#fef9f3',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f3f4',
+  },
+  listWithFixedHeader: {
+    paddingTop: 60,
   },
 });
 
