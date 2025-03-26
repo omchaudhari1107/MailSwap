@@ -389,7 +389,7 @@ const MailBox = ({ route, navigation }) => {
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
-        console.error('Fetch emails error:', error);
+        // console.error('Fetch emails error:', error);
       }
     } finally {
       if (currentCategoryRef.current === category) {
@@ -649,6 +649,7 @@ const handleSelectAll = useCallback(() => {
           onDelete: () => setEmails(prev => prev.filter(e => e.id !== item.id)),
           onToggleStar: handleToggleStar,
           avatarInfo: getAvatarAndColor(),
+          user: user,
         });
       }
     };
@@ -865,8 +866,18 @@ const handleSelectAll = useCallback(() => {
           keyExtractor={(item, index) => (isInitialLoading || isRefreshing) ? index.toString() : item.id}
           contentContainerStyle={isSelectionMode ? styles.listWithFixedHeader : null}
           ListEmptyComponent={!isSearchLoading && !isInitialLoading && !isRefreshing && (
+            // import { Ionicons } from '@expo/vector-icons';
+
+            // import { Ionicons } from '@expo/vector-icons';
+
             <View style={styles.noEmailsContainer}>
-              <Text style={styles.noEmailsText}>No emails to display</Text>
+             <Ionicons 
+    name="mail-outline"    // Represents shredding/cutting
+    size={140}           // Larger size for a logo-like feel
+    color="#8b5014"      // Blue color to match the shredded paper in the image
+    style={styles.noEmailsIcon}
+  />
+  <Text style={styles.noEmailsText}>Nothing herein</Text>
             </View>
           )}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#1a73e8']} tintColor="#1a73e8" />}
@@ -875,7 +886,7 @@ const handleSelectAll = useCallback(() => {
 
       {!isSearchFocused && !isInitialLoading && (
         <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate('ComposeWithAI', { user })} >
-          <Ionicons name="sparkles" size={24} color="#291609" style={styles.aiicon} />
+          <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
           <Text style={styles.fabText}>Compose with AI</Text>
         </TouchableOpacity>
       )}
@@ -970,7 +981,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     bottom: 24,
-    backgroundColor: '#ffdbc1',
+    backgroundColor: '#8b5014',
     borderRadius: 15,
     paddingVertical: 20,
     paddingHorizontal: 24,
@@ -983,7 +994,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   fabText: {
-    color: '#291609',
+    color: '#ffdbc1',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1001,11 +1012,6 @@ const styles = StyleSheet.create({
   },
   starIcon: {
     marginTop: 4,
-  },
-  noEmailsContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   noEmailsText: {
     fontSize: 16,
@@ -1242,6 +1248,19 @@ const styles = StyleSheet.create({
   },
   listWithFixedHeader: {
     paddingTop: 60,
+  },
+  noEmailsContainer: {
+    minHeight: '100%',
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // backgroundColor: '#f9f5e7',
+  },
+  noEmailsText: {
+    fontSize: 16,
+    color: '#8B4513',
+    fontWeight: '500',
   },
 });
 

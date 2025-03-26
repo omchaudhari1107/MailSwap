@@ -4,6 +4,9 @@
     "slug": "MailSwap",
     "version": "1.0.0",
     "plugins": ["expo-router"],
+    "permissions": [
+      "documentPicker"
+    ],
     "android": {
       "package": "com.mailswap.MailSwap",
       "googleServicesFile": "./android/app/google-services.json"

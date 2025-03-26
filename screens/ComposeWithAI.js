@@ -9,8 +9,10 @@ import {
   Dimensions,
   Image,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = Platform.OS === 'ios' ? height * 0.08 : height * 0.06;
@@ -27,6 +29,7 @@ const ComposeWithAI = ({ navigation, route }) => {
   const [selectedTone, setSelectedTone] = useState('Professional');
   const [selectedLength, setSelectedLength] = useState('Medium');
   const [isTyping, setIsTyping] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const generatedEmailRef = useRef(null);
   
   const user = route.params?.user || {};
@@ -59,12 +62,33 @@ const ComposeWithAI = ({ navigation, route }) => {
     type();
   };
 
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets) {
+        setAttachedFiles(prevFiles => [...prevFiles, ...result.assets]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to pick document');
+      console.error(err);
+    }
+  };
+
+  const removeFile = (indexToRemove) => {
+    setAttachedFiles(prevFiles => 
+      prevFiles.filter((_, index) => index !== indexToRemove)
+    );
+  };
+
   const generateEmail = () => {
     let emailContent = '';
     let generatedSubject = '';
     const recipient = to.split('@')[0] || 'Recipient';
 
-    // Incorporate selectedLength into the generation logic as a style hint
     switch (selectedTone) {
       case 'Professional':
         generatedSubject = `Regarding ${prompt}`;
@@ -72,7 +96,7 @@ const ComposeWithAI = ({ navigation, route }) => {
           emailContent = `Dear ${recipient},\n\nRegarding "${prompt}", please let me know your availability.\n\nBest,\n${from}`;
         } else if (selectedLength === 'Medium') {
           emailContent = `Dear ${recipient},\n\nI hope this email finds you well. Regarding "${prompt}", I would like to discuss further details at your convenience.\n\nBest regards,\n${from}`;
-        } else { // Long
+        } else {
           emailContent = `Dear ${recipient},\n\nI hope this email finds you in good spirits. I am reaching out regarding "${prompt}". I believe it would be beneficial for us to discuss this matter in detail, and I would greatly appreciate the opportunity to coordinate with you at your earliest convenience. Please let me know what works best for your schedule.\n\nBest regards,\n${from}`;
         }
         break;
@@ -82,7 +106,7 @@ const ComposeWithAI = ({ navigation, route }) => {
           emailContent = `Hi ${recipient},\n\nAbout "${prompt}"—wanna chat?\n\nCheers,\n${from}`;
         } else if (selectedLength === 'Medium') {
           emailContent = `Hi ${recipient},\n\nI’m writing about "${prompt}". Let’s catch up soon—thoughts?\n\nCheers,\n${from}`;
-        } else { // Long
+        } else {
           emailContent = `Hey ${recipient},\n\nJust dropping you a note about "${prompt}". I’d love to catch up and chat about it whenever you’ve got a moment. Let me know what works for you—looking forward to it!\n\nCheers,\n${from}`;
         }
         break;
@@ -92,7 +116,7 @@ const ComposeWithAI = ({ navigation, route }) => {
           emailContent = `Dear ${recipient},\n\nRe: "${prompt}", I seek your input.\n\nSincerely,\n${from}`;
         } else if (selectedLength === 'Medium') {
           emailContent = `Hello ${recipient},\n\nOn the topic of "${prompt}", I am writing to seek your input and coordinate next steps. Looking forward to your reply.\n\nSincerely,\n${from}`;
-        } else { // Long
+        } else {
           emailContent = `Dear ${recipient},\n\nI trust this message finds you well. I am writing to you with regard to "${prompt}". It is my intention to seek your valuable input and to establish the necessary next steps for proceeding forward. I would be most grateful if you could provide your availability for a detailed discussion at your earliest convenience.\n\nSincerely,\n${from}`;
         }
         break;
@@ -102,7 +126,7 @@ const ComposeWithAI = ({ navigation, route }) => {
           emailContent = `Hey ${recipient},\n\n"${prompt}"—talk soon?\n\n${from}`;
         } else if (selectedLength === 'Medium') {
           emailContent = `Hey ${recipient},\n\nQuick note on "${prompt}": let’s talk soon!\n\nRegards,\n${from}`;
-        } else { // Long
+        } else {
           emailContent = `Hey ${recipient},\n\nJust a quick heads-up about "${prompt}". I’d like to touch base with you soon to go over it—nothing urgent, just want to make sure we’re on the same page. Let me know when you’re free!\n\nRegards,\n${from}`;
         }
         break;
@@ -222,7 +246,7 @@ const ComposeWithAI = ({ navigation, route }) => {
 
         {showGenerateButton && !generatedEmail && (
           <TouchableOpacity style={styles.generateButton} onPress={generateEmail}>
-            <Ionicons name="sparkles" size={isTablet ? 28 : 24} color="#291609" style={styles.aiicon} />
+            <Ionicons name="sparkles" size={isTablet ? 28 : 24} color="#ffdbc1" style={styles.aiicon} />
             <Text style={styles.generateButtonText}>Generate Email Content</Text>
           </TouchableOpacity>
         )}
@@ -249,6 +273,34 @@ const ComposeWithAI = ({ navigation, route }) => {
               textAlignVertical="top"
               editable={true}
             />
+            
+            <View style={styles.attachmentContainer}>
+              <TouchableOpacity 
+                style={styles.attachButton}
+                onPress={pickDocument}
+              >
+                <Ionicons name="attach" size={isTablet ? 24 : 20} color="#291609" />
+                <Text style={styles.attachButtonText}>Add Attachment</Text>
+              </TouchableOpacity>
+
+              {attachedFiles.length > 0 && (
+                <View style={styles.attachedFilesContainer}>
+                  {attachedFiles.map((file, index) => (
+                    <View key={index} style={styles.fileItem}>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => removeFile(index)}
+                        style={styles.removeFileButton}
+                      >
+                        <Ionicons name="close" size={isTablet ? 20 : 16} color="#5f6368" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -256,7 +308,7 @@ const ComposeWithAI = ({ navigation, route }) => {
       {generatedEmail && (
         <View style={styles.fixedSendButtonContainer}>
           <TouchableOpacity style={styles.sendButton}>
-            <Ionicons name="send" size={isTablet ? 24 : 20} color="#291609" />
+            <Ionicons name="send" size={isTablet ? 24 : 20} color="#ffdbc1" />
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
         </View>
@@ -358,7 +410,7 @@ const styles = StyleSheet.create({
     color: '#291609',
   },
   generateButton: {
-    backgroundColor: '#ffdbc1',
+    backgroundColor: '#8b5014',
     borderRadius: 15,
     paddingVertical: isTablet ? 20 : 16,
     paddingHorizontal: width * 0.06,
@@ -375,7 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: height * 0.02,
   },
   generateButtonText: {
-    color: '#291609',
+    color: '#ffdbc1',
     fontSize: isTablet ? 18 : 16,
     fontWeight: '600',
   },
@@ -396,7 +448,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffdbc1',
+    backgroundColor: '#8b5014',
     borderRadius: 8,
     paddingVertical: isTablet ? 14 : 12,
     elevation: 7,
@@ -406,7 +458,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   sendButtonText: {
-    color: '#291609',
+    color: '#ffdbc1',
     fontSize: isTablet ? 16 : 14,
     fontWeight: '600',
     marginLeft: 8,
@@ -427,6 +479,45 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth: 4,
     borderColor: '#8b5014',
+  },
+  attachmentContainer: {
+    marginTop: height * 0.02,
+  },
+  attachButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffdbc1',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    width: 'auto',
+    alignSelf: 'flex-start',
+  },
+  attachButtonText: {
+    color: '#291609',
+    fontSize: isTablet ? 16 : 14,
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  attachedFilesContainer: {
+    marginTop: 10,
+  },
+  fileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8e5d6',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+  },
+  fileName: {
+    flex: 1,
+    color: '#202124',
+    fontSize: isTablet ? 16 : 14,
+    marginRight: 8,
+  },
+  removeFileButton: {
+    padding: 4,
   },
 });
 
