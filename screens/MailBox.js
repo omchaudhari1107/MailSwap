@@ -621,7 +621,7 @@ const handleSelectAll = useCallback(() => {
       const firstLetter = senderName[0]?.toUpperCase();
       return firstLetter && /[a-zA-Z]/.test(firstLetter)
         ? { avatarSource: firstLetter, backgroundColor: LETTER_COLORS[firstLetter] || '#D3D3D3', isLetter: true }
-        : { avatarSource: 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png', backgroundColor: '#D3D3D3', isLetter: false };
+        : { avatarSource: 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png', backgroundColor: '#ffdbc1', isLetter: false };
     };
 
     const highlightText = (text, query) => {
@@ -709,11 +709,11 @@ const handleSelectAll = useCallback(() => {
   const renderHeader = () => isSelectionMode && (
     <View style={styles.selectionHeader}>
       <TouchableOpacity onPress={clearSelection}>
-        <Ionicons name="close" size={24} color="#000000" style={styles.boldIcon} />
+        <Ionicons name="close" size={26} color="#000000" style={styles.boldIcon} />
       </TouchableOpacity>
       <Text style={styles.selectionCount}>{selectedEmails.size} Selected</Text>
       <TouchableOpacity onPress={() => deleteEmails([...selectedEmails])} disabled={!selectedEmails.size}>
-        <Ionicons name="trash-outline" size={24} color={selectedEmails.size ? "#1c1a17" : "#000000"} style={styles.boldIcon} />
+        <Ionicons name="trash-outline" size={26} color={selectedEmails.size ? "#1c1a17" : "#000000"} style={styles.boldIcon} />
       </TouchableOpacity>
     </View>
   );
