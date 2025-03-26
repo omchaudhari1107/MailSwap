@@ -1185,6 +1185,7 @@ const styles = StyleSheet.create({
   },
   selectAllRow: {
     flexDirection: 'row',
+    marginTop:20,
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fef9f3',
