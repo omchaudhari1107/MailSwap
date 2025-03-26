@@ -15,38 +15,61 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import RNFS from 'react-native-fs';
-import * as Sharing from 'expo-sharing';
-import { PermissionsAndroid } from 'react-native';
 
 // Utility Functions
 const getGoogleToken = async () => {
   try {
-    return await GoogleSignin.getTokens();
+    const { accessToken } = await GoogleSignin.getTokens();
+    return accessToken;
   } catch (error) {
     console.error('Error getting Google token:', error);
     throw error;
   }
 };
 
-const requestStoragePermission = async () => {
-  if (Platform.OS !== 'android') return true;
+const deleteEmail = async (emailId, accessToken) => {
   try {
-    const granted = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-      PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-    ]);
-    return (
-      granted['android.permission.READ_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED &&
-      granted['android.permission.WRITE_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/trash`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
     );
-  } catch (err) {
-    console.warn('Error requesting storage permission:', err);
-    return false;
+    if (!response.ok) throw new Error('Failed to delete email');
+    return await response.json();
+  } catch (error) {
+    console.error('Error deleting email:', error);
+    throw error;
   }
 };
 
-// Simulated backend API call for starring email
+const modifyEmailLabels = async (emailId, accessToken, addLabelIds = [], removeLabelIds = []) => {
+  try {
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/modify`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          addLabelIds,
+          removeLabelIds,
+        }),
+      }
+    );
+    if (!response.ok) throw new Error('Failed to modify email labels');
+    return await response.json();
+  } catch (error) {
+    console.error('Error modifying email labels:', error);
+    throw error;
+  }
+};
+
 const toggleEmailStar = async (emailId, isStarred, accessToken) => {
   try {
     const response = await fetch(
@@ -71,9 +94,16 @@ const toggleEmailStar = async (emailId, isStarred, accessToken) => {
   }
 };
 
+// Configure Google Sign-In (call this in your app's entry point or before using this component)
+GoogleSignin.configure({
+  scopes: ['https://www.googleapis.com/auth/gmail.modify'], // Scope for modifying emails
+  webClientId: 'YOUR_WEB_CLIENT_ID', // Replace with your actual Web Client ID from Google Cloud Console
+});
+
 const EmailDetail = ({ route, navigation }) => {
-  const { email, avatarInfo, user } = route.params;
+  const { email, avatarInfo } = route.params;
   const [isStarred, setIsStarred] = useState(email.isStarred || false);
+  const [isArchived, setIsArchived] = useState(!email.labelIds?.includes('INBOX') || false); // Check if email is archived initially
   const [showFullHeader, setShowFullHeader] = useState(false);
   const [webViewHeight, setWebViewHeight] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,110 +134,72 @@ const EmailDetail = ({ route, navigation }) => {
   });
 
   // Handlers
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     Alert.alert('Delete Email', 'Are you sure you want to delete this email?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
-      },
-    ]);
-  }, [email.id, navigation]);
-
-  const handleArchive = useCallback(() => {
-    Alert.alert('Archive Email', 'Are you sure you want to archive this email?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Archive',
-        onPress: () => {
-          navigation.navigate('MailBox', { action: 'archive', emailId: email.id });
-          navigation.goBack();
+        onPress: async () => {
+          try {
+            const accessToken = await getGoogleToken();
+            await deleteEmail(email.id, accessToken);
+            navigation.goBack(); // Navigate back after successful deletion
+          } catch (error) {
+            Alert.alert('Error', 'Failed to delete email');
+          }
         },
       },
     ]);
   }, [email.id, navigation]);
 
+  const handleArchive = useCallback(async () => {
+    const action = isArchived ? 'Unarchive' : 'Archive';
+    Alert.alert(`${action} Email`, `Are you sure you want to ${action.toLowerCase()} this email?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: action,
+        onPress: async () => {
+          try {
+            const accessToken = await getGoogleToken();
+            if (isArchived) {
+              // Unarchive: Add INBOX label
+              await modifyEmailLabels(email.id, accessToken, ['INBOX'], []);
+              setIsArchived(false);
+            } else {
+              // Archive: Remove INBOX label
+              await modifyEmailLabels(email.id, accessToken, [], ['INBOX']);
+              setIsArchived(true);
+            }
+            navigation.goBack(); // Navigate back after action
+          } catch (error) {
+            Alert.alert('Error', `Failed to ${action.toLowerCase()} email`);
+          }
+        },
+      },
+    ]);
+  }, [email.id, isArchived, navigation]);
+
   const handleToggleStar = useCallback(async () => {
     try {
       const newStarredState = !isStarred;
-      const { accessToken } = await getGoogleToken();
+      const accessToken = await getGoogleToken();
       await toggleEmailStar(email.id, newStarredState, accessToken);
       setIsStarred(newStarredState);
     } catch (error) {
       Alert.alert('Error', 'Failed to update star status');
     }
-  }, [email.id, isStarred, navigation]);
+  }, [email.id, isStarred]);
 
   const handleWebViewMessage = useCallback((event) => {
     const data = event.nativeEvent.data;
     if (!isNaN(data)) {
       setWebViewHeight(parseInt(data));
       setIsLoading(false);
-    } else {
-      try {
-        const { type, mimeType, data: base64Data, filename, attachmentId } = JSON.parse(data);
-        if (type === 'openAttachment') {
-          handleAttachmentClick(mimeType, base64Data, filename, attachmentId);
-        }
-      } catch (error) {
-        console.error('Error parsing WebView message:', error);
-      }
     }
   }, []);
 
-  const handleAttachmentClick = useCallback(
-    async (mimeType, base64Data, filename, attachmentId) => {
-      if (!(await requestStoragePermission())) {
-        Alert.alert('Permission Denied', 'Storage permission is required.');
-        return;
-      }
-
-      const extensionMap = {
-        'application/pdf': '.pdf',
-        'image/jpeg': '.jpg',
-        'image/png': '.png',
-        'image/gif': '.gif',
-        'audio/mpeg': '.mp3',
-        'audio/wav': '.wav',
-        'video/mp4': '.mp4',
-        'video/quicktime': '.mov',
-        'application/msword': '.doc',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
-      };
-      const extension = extensionMap[mimeType] || '.bin';
-      const sanitizedFilename = (filename || 'attachment').replace(/[^a-zA-Z0-9.-]/g, '_');
-      const filePath = `${RNFS.TemporaryDirectoryPath}/${sanitizedFilename}${extension}`;
-
-      try {
-        if (base64Data) {
-          await RNFS.writeFile(filePath, base64Data, 'base64');
-        } else if (attachmentId && email.id) {
-          const { accessToken } = await getGoogleToken();
-          const response = await fetch(
-            `https://gmail.googleapis.com/gmail/v1/users/me/messages/${email.id}/attachments/${attachmentId}`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          const { data } = await response.json();
-          await RNFS.writeFile(filePath, data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-        } else {
-          throw new Error('No attachment data available');
-        }
-
-        const fileUri = Platform.OS === 'android' ? `file://${filePath}` : filePath;
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri, { mimeType, dialogTitle: 'Open with' });
-        } else {
-          throw new Error('Sharing not available');
-        }
-      } catch (error) {
-        console.error('Error handling attachment:', error);
-        Alert.alert('Error', `Failed to open attachment: ${error.message}`);
-      }
-    },
-    [email.id]
-  );
-
-  // Components
+  // Skeleton Loader Component
   const SkeletonLoader = () => (
     <View style={styles.skeletonContainer}>
       <View style={styles.skeletonLines}>
@@ -232,7 +224,7 @@ const EmailDetail = ({ route, navigation }) => {
           img { max-width: 100%; height: auto; }
           a { color: #1a0dab; text-decoration: none; }
           a:hover { text-decoration: underline; }
-          pre { white-space: pre-wrap; word-wrap: break-word; background: #f8e5d6; padding: 8px; border-radius: 4px; }
+          pre { white-space: pre-wrap; word-wrap: break-word; background: #f8e5d6; padding: 8px; borderRadius: 4px; }
           blockquote { border-left: 2px solid #dadce0; margin: 0; padding-left: 12px; color: #5f6368; }
         </style>
       </head>
@@ -256,9 +248,9 @@ const EmailDetail = ({ route, navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#332b23" />
           </TouchableOpacity>
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.iconButton} onPress={handleArchive}>
-              <Ionicons name="archive-outline" size={24} color="#332b23" />
-            </TouchableOpacity>
+            {/* <TouchableOpacity style={styles.iconButton} onPress={handleArchive}>
+              <Ionicons name={isArchived ? 'archive' : 'archive-outline'} size={24} color="#332b23" />
+            </TouchableOpacity> */}
             <TouchableOpacity style={styles.iconButton} onPress={handleDelete}>
               <Ionicons name="trash-outline" size={24} color="#332b23" />
             </TouchableOpacity>
@@ -278,9 +270,6 @@ const EmailDetail = ({ route, navigation }) => {
           <Text style={styles.subject} numberOfLines={2}>
             {email.subject}
           </Text>
-          {/* <TouchableOpacity onPress={handleToggleStar}>
-            <Ionicons name={isStarred ? 'star' : 'star-outline'} size={24} color={isStarred ? '#f4b400' : '#332b23'} />
-          </TouchableOpacity> */}
         </View>
 
         <View style={styles.emailMetadata}>
@@ -359,7 +348,6 @@ const EmailDetail = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fef9f3' },
   header: {
-    // marginBottom: 8,
     backgroundColor: '#fef9f3',
     borderBottomWidth: 1,
     borderBottomColor: '#dadce0',
@@ -369,17 +357,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
-    position: 'fixed', // Make header fixed
-    top: 0,
-    left: 0,
-    right: 0,
-    // zIndex: 1000, // Ensure it stays above content
   },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16 },
   backButton: { padding: 8 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   iconButton: { padding: 8 },
-  content: { flex: 1, backgroundColor: '#fef9f3', marginTop: 10 }, // Add margin to prevent overlap with fixed header
+  content: { flex: 1, backgroundColor: '#fef9f3', marginTop: 10 },
   subjectContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   subject: { fontSize: 20, fontWeight: '400', color: '#202124', flex: 1, marginRight: 8 },
   emailMetadata: { paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#dadce0' },

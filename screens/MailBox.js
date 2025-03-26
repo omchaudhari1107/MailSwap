@@ -282,6 +282,7 @@ const MailBox = ({ route, navigation }) => {
     { key: 'primary', label: 'Primary', icon: 'mail' },
     { key: 'spam', label: 'Spam', icon: 'alert-circle' },
     { key: 'starred', label: 'Starred', icon: 'star' },
+    // { key: 'archive' ,label: 'Archive', icon: 'archive' },
   ], []);
 
   const preprocessedEmails = useMemo(() => {
@@ -339,6 +340,7 @@ const MailBox = ({ route, navigation }) => {
       let query = '';
       if (category === 'spam') query = 'in:spam';
       else if (category === 'starred') query = 'is:starred';
+      // else if (category === 'archive') query = '-in:inbox -in:spam -in:trash';
       else query = 'in:inbox -in:spam';
 
       const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=${query}`, {
@@ -1011,7 +1013,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#e0e7ff',
   },
   starIcon: {
-    marginTop: 4,
+    right: 0,
+    bottom: 0,
+    marginTop: 15,
+  },
+  emailRight:{
+    flexDirection: 'column',
+    alignItems: 'flex-end',
   },
   noEmailsText: {
     fontSize: 16,
