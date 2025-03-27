@@ -280,11 +280,14 @@ const MailBox = ({ route, navigation }) => {
 
   const emailCategories = useMemo(() => [
     { key: 'primary', label: 'Primary', icon: 'mail' },
-    { key: 'spam', label: 'Spam', icon: 'alert-circle' },
-    { key: 'starred', label: 'Starred', icon: 'star' },
     { key: 'sent', label: 'Sent', icon: 'send' },
+    { key: 'starred', label: 'Starred', icon: 'star' },
+    { key: 'spam', label: 'Spam', icon: 'alert-circle' },
     // { key: 'archive' ,label: 'Archive', icon: 'archive' },
   ], []);
+
+  // <Ionicons name={category.icon} size={16} color={emailCategory === category.key ? '#291609' : '#5f6368'} /> for tags icon
+
 
   const preprocessedEmails = useMemo(() => {
     return emails.map(email => ({
@@ -775,7 +778,6 @@ const handleSelectAll = useCallback(() => {
               style={[styles.emailCategoryChip, emailCategory === category.key && styles.selectedEmailCategoryChip]}
               onPress={() => handleCategoryChange(category.key)}
             >
-              <Ionicons name={category.icon} size={16} color={emailCategory === category.key ? '#291609' : '#5f6368'} />
               <Text style={[styles.emailCategoryChipText, emailCategory === category.key && styles.selectedEmailCategoryChipText]}>
                 {category.label}
               </Text>
@@ -1078,7 +1080,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffdbc1',
   },
   emailCategoryChipText: {
-    marginLeft: 6,
+    // marginLeft: 6,
     fontSize: 14,
     color: '#5f6368',
   },
