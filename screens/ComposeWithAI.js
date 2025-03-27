@@ -16,6 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import Together from "together-ai";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { Buffer } from 'buffer';
+import { encode as base64Encode } from 'react-native-base64';
+import base64 from 'react-native-base64';
+// import { encode as base64Encode } from 'react-native-quick-base64';
+
+
 
 const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' });
 
@@ -109,16 +115,16 @@ const ComposeWithAI = ({ navigation, route }) => {
     try {
       const aiPrompt = `${user.name || 'User'} wants to generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only the subject and main content, ensuring proper greetings and closing based on the context.  
 
-      For **professional emails**, use greetings like "Respected Sir/Madam" and closings like "Yours sincerely, [User's Name]" or "Yours faithfully, [User's Name]."  
-      For **casual emails**, use greetings like "Dear friend" or "Sir" and closings like "Yours truly, [User's Name]" or "Lovingly, [User's Name]."  
-      
+      For **professional emails**, use greetings like "Respected Sir/Madam" and closings like "Yours sincerely, \n [User's Name]" or "Yours faithfully,\n [User's Name]."  
+      For **casual emails**, use greetings like "Dear friend" or "Sir" and closings like "Yours truly,\n [User's Name]" or "Lovingly, \n [User's Name]."  
+      means after evrey closing like "Yours sincerely" or "Yours faithfully" add a new line and then add the user's name.
       Format the response as follows without enclosing the subject or content in quotes:  
       Subject: [subject line]  
       
       [main content with appropriate line breaks if needed]  
-      [Proper greeting at the start]  
+      [Proper greeting at the start with \n]  
       [Email body]  
-      [Proper closing as per the tone, followed by the user's name]  
+      [Proper closing as per the tone, followed by the \n user's name ]  
       
       Email context: "${prompt} and ensure the email ends with proper regards."`;
             
@@ -145,7 +151,7 @@ const ComposeWithAI = ({ navigation, route }) => {
 
   const sendEmail = async () => {
     setToError('');
-
+  
     if (!to.trim()) {
       setToError('Recipient email is required.');
       return;
@@ -154,42 +160,51 @@ const ComposeWithAI = ({ navigation, route }) => {
       setToError('Please enter a valid email address (e.g., example@domain.com).');
       return;
     }
-
+  
     Alert.alert(
       'Confirm Send',
       'Are you sure you want to send this email? AI might make mistakes, so please verify the content once.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Send',
           onPress: async () => {
             setIsSending(true);
             try {
               const accessToken = await getGoogleToken();
-
+  
               const email = {
                 to: to,
                 from: user.email || from,
                 subject: subject,
                 message: generatedEmail,
               };
-
-              const boundary = 'boundary_' + Math.random().toString(36).substring(2);
+  
+              // Convert plain text message to HTML
+              const htmlMessage = `
+                <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+                  ${email.message
+                    .split('\n')
+                    .filter(line => line.trim()) // Remove empty lines
+                    .map(line => `<p style="margin: 0 0 10px 0;">${line.trim()}</p>`)
+                    .join('')}
+                </div>
+              `;
+  
+              const boundary = `boundary_${Math.random().toString(36).substring(2)}`;
               let emailBody = '';
+  
               if (attachedFiles.length === 0) {
                 emailBody = [
                   `To: ${email.to}`,
                   `From: ${email.from}`,
                   `Subject: ${email.subject}`,
-                  `Content-Type: text/plain; charset=UTF-8`,
+                  `Content-Type: text/html; charset=UTF-8`, // Use text/html
                   '',
-                  ...email.message.split('\n').map(line => line.trim()),
+                  htmlMessage, // Use HTML-formatted message
                 ].join('\r\n');
               } else {
-                emailBody = [
+                let bodyParts = [
                   `To: ${email.to}`,
                   `From: ${email.from}`,
                   `Subject: ${email.subject}`,
@@ -197,24 +212,28 @@ const ComposeWithAI = ({ navigation, route }) => {
                   `Content-Type: multipart/mixed; boundary="${boundary}"`,
                   '',
                   `--${boundary}`,
-                  `Content-Type: text/plain; charset=UTF-8`,
+                  `Content-Type: text/html; charset=UTF-8`, // HTML part
                   '',
-                  ...email.message.split('\n').map(line => line.trim()),
+                  htmlMessage, // Use HTML-formatted message
                 ];
-
+  
                 for (const file of attachedFiles) {
                   if (file.size > 20 * 1024 * 1024) {
                     throw new Error(`File "${file.name}" is too large to attach (max 20MB).`);
                   }
-
-                  const fileContent = await fetch(file.uri).then(res => res.blob());
+  
+                  const response = await fetch(file.uri);
+                  const blob = await response.blob();
+                  const reader = new FileReader();
+  
                   const base64Content = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                    reader.readAsDataURL(fileContent);
+                    reader.onloadend = () => {
+                      resolve(reader.result.split(',')[1]); // Extract actual Base64 data
+                    };
+                    reader.readAsDataURL(blob);
                   });
-
-                  emailBody.push(
+  
+                  bodyParts.push(
                     `--${boundary}`,
                     `Content-Type: ${file.mimeType || 'application/octet-stream'}`,
                     `Content-Disposition: attachment; filename="${file.name}"`,
@@ -223,16 +242,22 @@ const ComposeWithAI = ({ navigation, route }) => {
                     base64Content
                   );
                 }
-
-                emailBody.push(`--${boundary}--`);
-                emailBody = emailBody.join('\r\n');
+  
+                bodyParts.push(`--${boundary}--`);
+                emailBody = bodyParts.join('\r\n');
               }
-
-              const rawEmail = btoa(emailBody)
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-
+  
+              // Correct Base64 encoding using Buffer (or your base64 library)
+              const base64Encode = (str) => {
+                return Buffer.from(str, 'utf-8')
+                  .toString('base64')
+                  .replace(/\+/g, '-')
+                  .replace(/\//g, '_')
+                  .replace(/=+$/, '');
+              };
+  
+              const rawEmail = base64Encode(emailBody);
+  
               const response = await fetch(
                 'https://www.googleapis.com/gmail/v1/users/me/messages/send',
                 {
@@ -241,12 +266,10 @@ const ComposeWithAI = ({ navigation, route }) => {
                     Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                   },
-                  body: JSON.stringify({
-                    raw: rawEmail,
-                  }),
+                  body: JSON.stringify({ raw: rawEmail }),
                 }
               );
-
+  
               if (response.ok) {
                 Alert.alert('Success', 'Your email has been sent!');
                 navigation.goBack();
