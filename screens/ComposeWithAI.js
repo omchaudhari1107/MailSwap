@@ -13,6 +13,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import Together from "together-ai";
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' }); // Replace with your actual API key
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = Platform.OS === 'ios' ? height * 0.08 : height * 0.06;
@@ -30,10 +34,10 @@ const ComposeWithAI = ({ navigation, route }) => {
   const [selectedLength, setSelectedLength] = useState('Medium');
   const [isTyping, setIsTyping] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
-  const generatedEmailRef = useRef(null);
-  
-  const user = route.params?.user || {};
+  const [isEmailEditable, setIsEmailEditable] = useState(false);
 
+  const generatedEmailRef = useRef(null);
+  const user = route.params?.user || {};
   const tones = ['Professional', 'Casual', 'Formal', 'Brief'];
   const lengths = ['Short', 'Medium', 'Long'];
 
@@ -51,30 +55,153 @@ const ComposeWithAI = ({ navigation, route }) => {
     const type = () => {
       if (i < text.length) {
         setDisplayedEmail(text.substring(0, i + 1));
-        setGeneratedEmail(text.substring(0, i + 1));
         i++;
         setTimeout(type, speed);
       } else {
         setIsTyping(false);
       }
     };
-    
     type();
+  };
+
+  const getGoogleToken = async () => {
+    try {
+      const { accessToken } = await GoogleSignin.getTokens();
+      return accessToken;
+    } catch (error) {
+      console.error('Error getting Google token:', error);
+      throw error;
+    }
+  };
+
+  const generateEmail = async () => {
+    try {
+      const aiPrompt = `${user.name || 'User'} want Generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only subject and main content based on "${prompt} and email with proper regards". Format the response as: Subject: [subject line]\n\n[main content] and the main content is also with the '\n' if required`;
+      
+      const response = await together.chat.completions.create({
+        messages: [{"role": "user", "content": aiPrompt}],
+        model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+      });
+
+      const generatedContent = response.choices[0].message.content;
+      const [subjectLine, ...bodyLines] = generatedContent.split('\n\n');
+      const subjectText = subjectLine.replace('Subject: ', '');
+      const bodyText = bodyLines.join('\n\n');
+
+      setSubject(subjectText);
+      setGeneratedEmail(bodyText);
+      setDisplayedEmail('');
+      setShowGenerateButton(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to generate email. Please try again.');
+      console.error('Email generation error:', error);
+    }
+  };
+
+  const sendEmail = async () => {
+    try {
+      const accessToken = await getGoogleToken();
+
+      Alert.alert(
+        'Confirm Send',
+        'Please check the email content, AI might make mistakes.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Send',
+            onPress: async () => {
+              try {
+                const email = {
+                  to: to,
+                  from: user.email || from,
+                  subject: subject,
+                  message: generatedEmail,
+                };
+
+                const rawEmail = btoa(
+                  `To: ${email.to}\r\n` +
+                  `From: ${email.from}\r\n` +
+                  `Subject: ${email.subject}\r\n\r\n` +
+                  `${email.message}`
+                ).replace(/\+/g, '-').replace(/\//g, '_');
+
+                const response = await fetch(
+                  'https://www.googleapis.com/gmail/v1/users/me/messages/send',
+                  {
+                    method: 'POST',
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      raw: rawEmail,
+                    }),
+                  }
+                );
+
+                if (response.ok) {
+                  Alert.alert('Success', 'Email sent successfully!');
+                  navigation.goBack();
+                } else {
+                  const errorData = await response.json();
+                  throw new Error(errorData.error.message || 'Failed to send email');
+                }
+              } catch (error) {
+                Alert.alert('Error', 'Failed to send email. Please try again.');
+                console.error('Email sending error:', error);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Authentication Error', 'Please sign in with Google first.');
+    }
   };
 
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         multiple: true,
+        type: [
+          'image/*',
+          'application/pdf',
+          'text/*',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'video/*',
+          'audio/*',
+        ],
         copyToCacheDirectory: true,
       });
 
-      if (!result.canceled && result.assets) {
-        setAttachedFiles(prevFiles => [...prevFiles, ...result.assets]);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newFiles = result.assets.filter(newFile => 
+          !attachedFiles.some(existingFile => 
+            existingFile.uri === newFile.uri || existingFile.name === newFile.name
+          )
+        );
+
+        if (newFiles.length > 0) {
+          setAttachedFiles(prevFiles => [...prevFiles, ...newFiles]);
+        } else {
+          Alert.alert('Info', 'All selected files are already attached.');
+        }
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to pick document');
-      console.error(err);
+      let errorMessage = 'Failed to pick document. Please try again.';
+      if (err.message.includes('permission')) {
+        errorMessage = 'Permission denied. Please allow access to files.';
+      } else if (err.message.includes('size')) {
+        errorMessage = 'Selected file is too large.';
+      }
+      Alert.alert('Error', errorMessage);
+      console.error('Document picking error:', err);
     }
   };
 
@@ -84,58 +211,51 @@ const ComposeWithAI = ({ navigation, route }) => {
     );
   };
 
-  const generateEmail = () => {
-    let emailContent = '';
-    let generatedSubject = '';
-    const recipient = to.split('@')[0] || 'Recipient';
-
-    switch (selectedTone) {
-      case 'Professional':
-        generatedSubject = `Regarding ${prompt}`;
-        if (selectedLength === 'Short') {
-          emailContent = `Dear ${recipient},\n\nRegarding "${prompt}", please let me know your availability.\n\nBest,\n${from}`;
-        } else if (selectedLength === 'Medium') {
-          emailContent = `Dear ${recipient},\n\nI hope this email finds you well. Regarding "${prompt}", I would like to discuss further details at your convenience.\n\nBest regards,\n${from}`;
-        } else {
-          emailContent = `Dear ${recipient},\n\nI hope this email finds you in good spirits. I am reaching out regarding "${prompt}". I believe it would be beneficial for us to discuss this matter in detail, and I would greatly appreciate the opportunity to coordinate with you at your earliest convenience. Please let me know what works best for your schedule.\n\nBest regards,\n${from}`;
-        }
-        break;
-      case 'Casual':
-        generatedSubject = `${prompt} - Quick Chat`;
-        if (selectedLength === 'Short') {
-          emailContent = `Hi ${recipient},\n\nAbout "${prompt}"—wanna chat?\n\nCheers,\n${from}`;
-        } else if (selectedLength === 'Medium') {
-          emailContent = `Hi ${recipient},\n\nI’m writing about "${prompt}". Let’s catch up soon—thoughts?\n\nCheers,\n${from}`;
-        } else {
-          emailContent = `Hey ${recipient},\n\nJust dropping you a note about "${prompt}". I’d love to catch up and chat about it whenever you’ve got a moment. Let me know what works for you—looking forward to it!\n\nCheers,\n${from}`;
-        }
-        break;
-      case 'Formal':
-        generatedSubject = `Subject: ${prompt}`;
-        if (selectedLength === 'Short') {
-          emailContent = `Dear ${recipient},\n\nRe: "${prompt}", I seek your input.\n\nSincerely,\n${from}`;
-        } else if (selectedLength === 'Medium') {
-          emailContent = `Hello ${recipient},\n\nOn the topic of "${prompt}", I am writing to seek your input and coordinate next steps. Looking forward to your reply.\n\nSincerely,\n${from}`;
-        } else {
-          emailContent = `Dear ${recipient},\n\nI trust this message finds you well. I am writing to you with regard to "${prompt}". It is my intention to seek your valuable input and to establish the necessary next steps for proceeding forward. I would be most grateful if you could provide your availability for a detailed discussion at your earliest convenience.\n\nSincerely,\n${from}`;
-        }
-        break;
-      case 'Brief':
-        generatedSubject = `${prompt}`;
-        if (selectedLength === 'Short') {
-          emailContent = `Hey ${recipient},\n\n"${prompt}"—talk soon?\n\n${from}`;
-        } else if (selectedLength === 'Medium') {
-          emailContent = `Hey ${recipient},\n\nQuick note on "${prompt}": let’s talk soon!\n\nRegards,\n${from}`;
-        } else {
-          emailContent = `Hey ${recipient},\n\nJust a quick heads-up about "${prompt}". I’d like to touch base with you soon to go over it—nothing urgent, just want to make sure we’re on the same page. Let me know when you’re free!\n\nRegards,\n${from}`;
-        }
-        break;
+  const renderFilePreview = (file) => {
+    if (file.mimeType && file.mimeType.includes('image')) {
+      return (
+        <Image
+          source={{ uri: file.uri }}
+          style={styles.filePreviewImage}
+        />
+      );
+    } else if (file.mimeType && file.mimeType.includes('pdf')) {
+      return (
+        <Ionicons 
+          name="document-text" 
+          size={isTablet ? 24 : 20} 
+          color="#291609" 
+          style={styles.fileIcon}
+        />
+      );
+    } else if (file.mimeType && file.mimeType.includes('video')) {
+      return (
+        <Ionicons 
+          name="videocam" 
+          size={isTablet ? 24 : 20} 
+          color="#291609" 
+          style={styles.fileIcon}
+        />
+      );
+    } else if (file.mimeType && file.mimeType.includes('audio')) {
+      return (
+        <Ionicons 
+          name="musical-notes" 
+          size={isTablet ? 24 : 20} 
+          color="#291609" 
+          style={styles.fileIcon}
+        />
+      );
+    } else {
+      return (
+        <Ionicons 
+          name="document" 
+          size={isTablet ? 24 : 20} 
+          color="#291609" 
+          style={styles.fileIcon}
+        />
+      );
     }
-
-    setSubject(generatedSubject);
-    setGeneratedEmail(emailContent);
-    setDisplayedEmail('');
-    setShowGenerateButton(false);
   };
 
   const handleEmailChange = (text) => {
@@ -264,22 +384,36 @@ const ComposeWithAI = ({ navigation, route }) => {
               />
             </View>
             <Text style={styles.generatedLabel}>Generated Email:</Text>
-            <TextInput
-              ref={generatedEmailRef}
-              style={[styles.generated, styles.generatedInput]}
-              value={displayedEmail}
-              onChangeText={handleEmailChange}
-              multiline
-              textAlignVertical="top"
-              editable={true}
-            />
+            <View style={styles.generatedInputWrapper}>
+              <TextInput
+                ref={generatedEmailRef}
+                style={[styles.generated, styles.generatedInput]}
+                value={displayedEmail}
+                onChangeText={handleEmailChange}
+                multiline
+                textAlignVertical="top"
+                editable={isEmailEditable}
+              />
+              {!isTyping && (
+                <TouchableOpacity 
+                  style={styles.editButton}
+                  onPress={() => setIsEmailEditable(!isEmailEditable)}
+                >
+                  <Ionicons 
+                    name={isEmailEditable ? "checkmark" : "pencil"} 
+                    size={isTablet ? 20 : 20} 
+                    color="#ffdbc1" 
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
             
             <View style={styles.attachmentContainer}>
               <TouchableOpacity 
                 style={styles.attachButton}
                 onPress={pickDocument}
               >
-                <Ionicons name="attach" size={isTablet ? 24 : 20} color="#291609" />
+                <Ionicons name="attach" size={isTablet ? 26 : 26} color="#291609" />
                 <Text style={styles.attachButtonText}>Add Attachment</Text>
               </TouchableOpacity>
 
@@ -287,6 +421,7 @@ const ComposeWithAI = ({ navigation, route }) => {
                 <View style={styles.attachedFilesContainer}>
                   {attachedFiles.map((file, index) => (
                     <View key={index} style={styles.fileItem}>
+                      {renderFilePreview(file)}
                       <Text style={styles.fileName} numberOfLines={1}>
                         {file.name}
                       </Text>
@@ -307,7 +442,10 @@ const ComposeWithAI = ({ navigation, route }) => {
 
       {generatedEmail && (
         <View style={styles.fixedSendButtonContainer}>
-          <TouchableOpacity style={styles.sendButton}>
+          <TouchableOpacity 
+            style={styles.sendButton}
+            onPress={sendEmail}
+          >
             <Ionicons name="send" size={isTablet ? 24 : 20} color="#ffdbc1" />
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
@@ -380,6 +518,10 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     height: undefined,
   },
+  generatedInputWrapper: {
+    position: 'relative',
+    marginBottom: height * 0.02,
+  },
   promptInput: {
     height: isTablet ? 150 : 100,
     textAlignVertical: 'top',
@@ -436,6 +578,18 @@ const styles = StyleSheet.create({
     color: '#5f6368',
     fontWeight: '500',
     marginBottom: height * 0.005,
+  },
+  editButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    padding: 8,
+    backgroundColor: '#8b5014',
   },
   fixedSendButtonContainer: {
     position: 'absolute',
@@ -509,6 +663,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
     marginBottom: 8,
+  },
+  filePreviewImage: {
+    width: isTablet ? 40 : 32,
+    height: isTablet ? 40 : 32,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  fileIcon: {
+    marginRight: 8,
   },
   fileName: {
     flex: 1,

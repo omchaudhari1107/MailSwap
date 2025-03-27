@@ -17,6 +17,7 @@
     "expo": "~52.0.39",
     "expo-av": "~15.0.2",
     "expo-dev-client": "~5.0.14",
+    "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.11",
     "expo-router": "~4.0.19",
     "expo-sharing": "~13.0.1",
@@ -33,7 +34,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-webview": "13.12.5",
-    "expo-document-picker": "~13.0.3"
+    "together-ai": "^0.13.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

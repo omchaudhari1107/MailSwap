@@ -282,6 +282,7 @@ const MailBox = ({ route, navigation }) => {
     { key: 'primary', label: 'Primary', icon: 'mail' },
     { key: 'spam', label: 'Spam', icon: 'alert-circle' },
     { key: 'starred', label: 'Starred', icon: 'star' },
+    { key: 'sent', label: 'Sent', icon: 'send' },
     // { key: 'archive' ,label: 'Archive', icon: 'archive' },
   ], []);
 
@@ -340,6 +341,7 @@ const MailBox = ({ route, navigation }) => {
       let query = '';
       if (category === 'spam') query = 'in:spam';
       else if (category === 'starred') query = 'is:starred';
+      else if (category === 'sent') query = 'in:sent';
       // else if (category === 'archive') query = '-in:inbox -in:spam -in:trash';
       else query = 'in:inbox -in:spam';
 
