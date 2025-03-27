@@ -9,6 +9,7 @@ import {
   Dimensions,
   Image,
   Platform,
+  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +17,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import Together from "together-ai";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' }); // Replace with your actual API key
+const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' });
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = Platform.OS === 'ios' ? height * 0.08 : height * 0.06;
 const isTablet = width > 768;
+
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
 const ComposeWithAI = ({ navigation, route }) => {
   const [from, setFrom] = useState('');
@@ -35,6 +41,10 @@ const ComposeWithAI = ({ navigation, route }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [isEmailEditable, setIsEmailEditable] = useState(false);
+  const [toError, setToError] = useState('');
+  const [promptError, setPromptError] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const generatedEmailRef = useRef(null);
   const user = route.params?.user || {};
@@ -44,6 +54,7 @@ const ComposeWithAI = ({ navigation, route }) => {
   useEffect(() => {
     if (generatedEmail && !displayedEmail) {
       setIsTyping(true);
+      setIsGenerating(false);
       typeWriterEffect(generatedEmail);
     }
   }, [generatedEmail]);
@@ -75,9 +86,42 @@ const ComposeWithAI = ({ navigation, route }) => {
   };
 
   const generateEmail = async () => {
+    setToError('');
+    setPromptError('');
+
+    let hasError = false;
+    if (!to.trim()) {
+      setToError('Recipient email is required.');
+      hasError = true;
+    } else if (!isValidEmail(to.trim())) {
+      setToError('Please enter a valid email address (e.g., example@domain.com).');
+      hasError = true;
+    }
+    if (!prompt.trim()) {
+      setPromptError('Prompt is required to generate the email.');
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    setIsGenerating(true);
+
     try {
-      const aiPrompt = `${user.name || 'User'} want Generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only subject and main content based on "${prompt} and email with proper regards". Format the response as: Subject: [subject line]\n\n[main content] and the main content is also with the '\n' if required`;
+      const aiPrompt = `${user.name || 'User'} wants to generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only the subject and main content, ensuring proper greetings and closing based on the context.  
+
+      For **professional emails**, use greetings like "Respected Sir/Madam" and closings like "Yours sincerely, [User's Name]" or "Yours faithfully, [User's Name]."  
+      For **casual emails**, use greetings like "Dear friend" or "Sir" and closings like "Yours truly, [User's Name]" or "Lovingly, [User's Name]."  
       
+      Format the response as follows without enclosing the subject or content in quotes:  
+      Subject: [subject line]  
+      
+      [main content with appropriate line breaks if needed]  
+      [Proper greeting at the start]  
+      [Email body]  
+      [Proper closing as per the tone, followed by the user's name]  
+      
+      Email context: "${prompt} and ensure the email ends with proper regards."`;
+            
       const response = await together.chat.completions.create({
         messages: [{"role": "user", "content": aiPrompt}],
         model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
@@ -93,73 +137,133 @@ const ComposeWithAI = ({ navigation, route }) => {
       setDisplayedEmail('');
       setShowGenerateButton(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate email. Please try again.');
+      setIsGenerating(false);
+      setToError('Failed to generate email. Please try again.');
       console.error('Email generation error:', error);
     }
   };
 
   const sendEmail = async () => {
-    try {
-      const accessToken = await getGoogleToken();
+    setToError('');
 
-      Alert.alert(
-        'Confirm Send',
-        'Please check the email content, AI might make mistakes.',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Send',
-            onPress: async () => {
-              try {
-                const email = {
-                  to: to,
-                  from: user.email || from,
-                  subject: subject,
-                  message: generatedEmail,
-                };
-
-                const rawEmail = btoa(
-                  `To: ${email.to}\r\n` +
-                  `From: ${email.from}\r\n` +
-                  `Subject: ${email.subject}\r\n\r\n` +
-                  `${email.message}`
-                ).replace(/\+/g, '-').replace(/\//g, '_');
-
-                const response = await fetch(
-                  'https://www.googleapis.com/gmail/v1/users/me/messages/send',
-                  {
-                    method: 'POST',
-                    headers: {
-                      Authorization: `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      raw: rawEmail,
-                    }),
-                  }
-                );
-
-                if (response.ok) {
-                  Alert.alert('Success', 'Email sent successfully!');
-                  navigation.goBack();
-                } else {
-                  const errorData = await response.json();
-                  throw new Error(errorData.error.message || 'Failed to send email');
-                }
-              } catch (error) {
-                Alert.alert('Error', 'Failed to send email. Please try again.');
-                console.error('Email sending error:', error);
-              }
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Authentication Error', 'Please sign in with Google first.');
+    if (!to.trim()) {
+      setToError('Recipient email is required.');
+      return;
     }
+    if (!isValidEmail(to.trim())) {
+      setToError('Please enter a valid email address (e.g., example@domain.com).');
+      return;
+    }
+
+    Alert.alert(
+      'Confirm Send',
+      'Are you sure you want to send this email? AI might make mistakes, so please verify the content once.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send',
+          onPress: async () => {
+            setIsSending(true);
+            try {
+              const accessToken = await getGoogleToken();
+
+              const email = {
+                to: to,
+                from: user.email || from,
+                subject: subject,
+                message: generatedEmail,
+              };
+
+              const boundary = 'boundary_' + Math.random().toString(36).substring(2);
+              let emailBody = '';
+              if (attachedFiles.length === 0) {
+                emailBody = [
+                  `To: ${email.to}`,
+                  `From: ${email.from}`,
+                  `Subject: ${email.subject}`,
+                  `Content-Type: text/plain; charset=UTF-8`,
+                  '',
+                  ...email.message.split('\n').map(line => line.trim()),
+                ].join('\r\n');
+              } else {
+                emailBody = [
+                  `To: ${email.to}`,
+                  `From: ${email.from}`,
+                  `Subject: ${email.subject}`,
+                  `MIME-Version: 1.0`,
+                  `Content-Type: multipart/mixed; boundary="${boundary}"`,
+                  '',
+                  `--${boundary}`,
+                  `Content-Type: text/plain; charset=UTF-8`,
+                  '',
+                  ...email.message.split('\n').map(line => line.trim()),
+                ];
+
+                for (const file of attachedFiles) {
+                  if (file.size > 20 * 1024 * 1024) {
+                    throw new Error(`File "${file.name}" is too large to attach (max 20MB).`);
+                  }
+
+                  const fileContent = await fetch(file.uri).then(res => res.blob());
+                  const base64Content = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(fileContent);
+                  });
+
+                  emailBody.push(
+                    `--${boundary}`,
+                    `Content-Type: ${file.mimeType || 'application/octet-stream'}`,
+                    `Content-Disposition: attachment; filename="${file.name}"`,
+                    `Content-Transfer-Encoding: base64`,
+                    '',
+                    base64Content
+                  );
+                }
+
+                emailBody.push(`--${boundary}--`);
+                emailBody = emailBody.join('\r\n');
+              }
+
+              const rawEmail = btoa(emailBody)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+
+              const response = await fetch(
+                'https://www.googleapis.com/gmail/v1/users/me/messages/send',
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    raw: rawEmail,
+                  }),
+                }
+              );
+
+              if (response.ok) {
+                Alert.alert('Success', 'Your email has been sent!');
+                navigation.goBack();
+              } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error.message || 'Failed to send email');
+              }
+            } catch (error) {
+              setToError(error.message || 'Failed to send email. Please try again.');
+              console.error('Email sending error:', error);
+            } finally {
+              setIsSending(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const pickDocument = async () => {
@@ -189,18 +293,9 @@ const ComposeWithAI = ({ navigation, route }) => {
 
         if (newFiles.length > 0) {
           setAttachedFiles(prevFiles => [...prevFiles, ...newFiles]);
-        } else {
-          Alert.alert('Info', 'All selected files are already attached.');
         }
       }
     } catch (err) {
-      let errorMessage = 'Failed to pick document. Please try again.';
-      if (err.message.includes('permission')) {
-        errorMessage = 'Permission denied. Please allow access to files.';
-      } else if (err.message.includes('size')) {
-        errorMessage = 'Selected file is too large.';
-      }
-      Alert.alert('Error', errorMessage);
       console.error('Document picking error:', err);
     }
   };
@@ -269,10 +364,7 @@ const ComposeWithAI = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={isTablet ? 28 : 24} color="#000000" style={styles.boldIcon} />
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.profileHeader} 
-          onPress={() => navigation.navigate('Profile', { user })}
-        >
+        <TouchableOpacity style={styles.profileHeader}>
           <Image 
             source={{ uri: user.photo || user.photoURL || 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png' }} 
             style={styles.profileImage} 
@@ -302,10 +394,14 @@ const ComposeWithAI = ({ navigation, route }) => {
           <TextInput
             style={styles.input}
             value={to}
-            onChangeText={setTo}
+            onChangeText={(text) => {
+              setTo(text);
+              setToError('');
+            }}
             placeholder="Recipient's email"
             placeholderTextColor="#5f6368"
           />
+          {toError ? <Text style={styles.errorText}>{toError}</Text> : null}
         </View>
 
         {!generatedEmail && (
@@ -315,11 +411,15 @@ const ComposeWithAI = ({ navigation, route }) => {
               <TextInput
                 style={[styles.input, styles.promptInput]}
                 value={prompt}
-                onChangeText={setPrompt}
+                onChangeText={(text) => {
+                  setPrompt(text);
+                  setPromptError('');
+                }}
                 placeholder="e.g., Request a meeting next week"
                 placeholderTextColor="#5f6368"
                 multiline
               />
+              {promptError ? <Text style={styles.errorText}>{promptError}</Text> : null}
             </View>
 
             <View style={styles.tagContainer}>
@@ -365,9 +465,19 @@ const ComposeWithAI = ({ navigation, route }) => {
         )}
 
         {showGenerateButton && !generatedEmail && (
-          <TouchableOpacity style={styles.generateButton} onPress={generateEmail}>
-            <Ionicons name="sparkles" size={isTablet ? 28 : 24} color="#ffdbc1" style={styles.aiicon} />
-            <Text style={styles.generateButtonText}>Generate Email Content</Text>
+          <TouchableOpacity 
+            style={styles.generateButton} 
+            onPress={generateEmail}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <ActivityIndicator size="small" color="#ffdbc1" />
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={isTablet ? 28 : 24} color="#ffdbc1" style={styles.aiicon} />
+                <Text style={styles.generateButtonText}>Generate Email Content</Text>
+              </>
+            )}
           </TouchableOpacity>
         )}
 
@@ -443,12 +553,20 @@ const ComposeWithAI = ({ navigation, route }) => {
       {generatedEmail && (
         <View style={styles.fixedSendButtonContainer}>
           <TouchableOpacity 
-            style={styles.sendButton}
+            style={[styles.sendButton, (isGenerating || isTyping) && styles.disabledButton]}
             onPress={sendEmail}
+            disabled={isGenerating || isTyping}
           >
             <Ionicons name="send" size={isTablet ? 24 : 20} color="#ffdbc1" />
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {isSending && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#8b5014" />
+          <Text style={styles.loadingText}>Sending Email...</Text>
         </View>
       )}
     </View>
@@ -681,6 +799,34 @@ const styles = StyleSheet.create({
   },
   removeFileButton: {
     padding: 4,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: isTablet ? 14 : 12,
+    marginTop: 4,
+  },
+  disabledButton: {
+    opacity: 0.6,
+    backgroundColor: '#a68a6b',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Increased opacity from 0.5 to 0.7 for stronger effect
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    backdropFilter: 'blur(5px)', // Added blur effect
+    WebkitBackdropFilter: 'blur(5px)', // Added for Safari compatibility
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#ffffff',
+    fontSize: isTablet ? 18 : 16,
+    fontWeight: '500',
   },
 });
 
