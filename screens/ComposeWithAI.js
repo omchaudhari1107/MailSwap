@@ -11,32 +11,37 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Vibration
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import Together from "together-ai";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Buffer } from 'buffer';
-import { encode as base64Encode } from 'react-native-base64';
-import base64 from 'react-native-base64';
-// import { encode as base64Encode } from 'react-native-quick-base64';
-
-
+import * as FileSystem from 'expo-file-system';
 
 const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' });
 
 const { width, height } = Dimensions.get('window');
 const HEADER_HEIGHT = Platform.OS === 'ios' ? height * 0.08 : height * 0.06;
 const isTablet = width > 768;
+const MAX_TOTAL_SIZE = 30 * 1024 * 1024; // 30MB in bytes
 
 const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
+const isValidEmailList = (emails) => {
+  if (!emails.trim()) return false;
+  const emailArray = emails.split(',').map(email => email.trim());
+  return emailArray.every(email => isValidEmail(email));
+};
+
 const ComposeWithAI = ({ navigation, route }) => {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [cc, setCc] = useState('');
   const [subject, setSubject] = useState('');
   const [prompt, setPrompt] = useState('');
   const [generatedEmail, setGeneratedEmail] = useState('');
@@ -46,8 +51,10 @@ const ComposeWithAI = ({ navigation, route }) => {
   const [selectedLength, setSelectedLength] = useState('Medium');
   const [isTyping, setIsTyping] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [totalSize, setTotalSize] = useState(0);
   const [isEmailEditable, setIsEmailEditable] = useState(false);
   const [toError, setToError] = useState('');
+  const [ccError, setCcError] = useState('');
   const [promptError, setPromptError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -67,11 +74,12 @@ const ComposeWithAI = ({ navigation, route }) => {
 
   const typeWriterEffect = (text) => {
     let i = 0;
-    const speed = 30;
+    const speed = 5;
     
     const type = () => {
       if (i < text.length) {
         setDisplayedEmail(text.substring(0, i + 1));
+        Vibration.vibrate(30);
         i++;
         setTimeout(type, speed);
       } else {
@@ -93,14 +101,20 @@ const ComposeWithAI = ({ navigation, route }) => {
 
   const generateEmail = async () => {
     setToError('');
+    setCcError('');
     setPromptError('');
 
     let hasError = false;
-    if (!to.trim()) {
-      setToError('Recipient email is required.');
+    if (!to.trim() && !cc.trim()) {
+      setToError('Please enter at least one recipient in To or CC field.');
       hasError = true;
-    } else if (!isValidEmail(to.trim())) {
-      setToError('Please enter a valid email address (e.g., example@domain.com).');
+    }
+    if (to.trim() && !isValidEmail(to.trim())) {
+      setToError('Please enter a valid email address in To field.');
+      hasError = true;
+    }
+    if (cc.trim() && !isValidEmailList(cc)) {
+      setCcError('Please enter valid email addresses in CC field, separated by commas.');
       hasError = true;
     }
     if (!prompt.trim()) {
@@ -117,7 +131,7 @@ const ComposeWithAI = ({ navigation, route }) => {
 
       For **professional emails**, use greetings like "Respected Sir/Madam" and closings like "Yours sincerely, \n [User's Name]" or "Yours faithfully,\n [User's Name]."  
       For **casual emails**, use greetings like "Dear friend" or "Sir" and closings like "Yours truly,\n [User's Name]" or "Lovingly, \n [User's Name]."  
-      means after evrey closing like "Yours sincerely" or "Yours faithfully" add a new line and then add the user's name.
+      means after every closing like "Yours sincerely" or "Yours faithfully" add a new line and then add the user's name.
       Format the response as follows without enclosing the subject or content in quotes:  
       Subject: [subject line]  
       
@@ -151,16 +165,21 @@ const ComposeWithAI = ({ navigation, route }) => {
 
   const sendEmail = async () => {
     setToError('');
-  
-    if (!to.trim()) {
-      setToError('Recipient email is required.');
+    setCcError('');
+
+    if (!to.trim() && !cc.trim()) {
+      setToError('Please enter at least one recipient in To or CC field.');
       return;
     }
-    if (!isValidEmail(to.trim())) {
-      setToError('Please enter a valid email address (e.g., example@domain.com).');
+    if (to.trim() && !isValidEmail(to.trim())) {
+      setToError('Please enter a valid email address in To field.');
       return;
     }
-  
+    if (cc.trim() && !isValidEmailList(cc)) {
+      setCcError('Please enter valid email addresses in CC field, separated by commas.');
+      return;
+    }
+
     Alert.alert(
       'Confirm Send',
       'Are you sure you want to send this email? AI might make mistakes, so please verify the content once.',
@@ -172,67 +191,58 @@ const ComposeWithAI = ({ navigation, route }) => {
             setIsSending(true);
             try {
               const accessToken = await getGoogleToken();
-  
+
               const email = {
                 to: to,
+                cc: cc,
                 from: user.email || from,
                 subject: subject,
                 message: generatedEmail,
               };
-  
-              // Convert plain text message to HTML
+
               const htmlMessage = `
                 <div style="font-family: Arial, sans-serif; line-height: 1.5;">
                   ${email.message
                     .split('\n')
-                    .filter(line => line.trim()) // Remove empty lines
+                    .filter(line => line.trim())
                     .map(line => `<p style="margin: 0 0 10px 0;">${line.trim()}</p>`)
                     .join('')}
                 </div>
               `;
-  
+
               const boundary = `boundary_${Math.random().toString(36).substring(2)}`;
               let emailBody = '';
-  
+
               if (attachedFiles.length === 0) {
                 emailBody = [
                   `To: ${email.to}`,
+                  ...(email.cc ? [`Cc: ${email.cc}`] : []),
                   `From: ${email.from}`,
                   `Subject: ${email.subject}`,
-                  `Content-Type: text/html; charset=UTF-8`, // Use text/html
+                  `Content-Type: text/html; charset=UTF-8`,
                   '',
-                  htmlMessage, // Use HTML-formatted message
+                  htmlMessage,
                 ].join('\r\n');
               } else {
                 let bodyParts = [
                   `To: ${email.to}`,
+                  ...(email.cc ? [`Cc: ${email.cc}`] : []),
                   `From: ${email.from}`,
                   `Subject: ${email.subject}`,
                   `MIME-Version: 1.0`,
                   `Content-Type: multipart/mixed; boundary="${boundary}"`,
                   '',
                   `--${boundary}`,
-                  `Content-Type: text/html; charset=UTF-8`, // HTML part
+                  `Content-Type: text/html; charset=UTF-8`,
                   '',
-                  htmlMessage, // Use HTML-formatted message
+                  htmlMessage,
                 ];
-  
+
                 for (const file of attachedFiles) {
-                  if (file.size > 20 * 1024 * 1024) {
-                    throw new Error(`File "${file.name}" is too large to attach (max 20MB).`);
-                  }
-  
-                  const response = await fetch(file.uri);
-                  const blob = await response.blob();
-                  const reader = new FileReader();
-  
-                  const base64Content = await new Promise((resolve) => {
-                    reader.onloadend = () => {
-                      resolve(reader.result.split(',')[1]); // Extract actual Base64 data
-                    };
-                    reader.readAsDataURL(blob);
+                  const base64Content = await FileSystem.readAsStringAsync(file.uri, {
+                    encoding: FileSystem.EncodingType.Base64,
                   });
-  
+
                   bodyParts.push(
                     `--${boundary}`,
                     `Content-Type: ${file.mimeType || 'application/octet-stream'}`,
@@ -242,22 +252,17 @@ const ComposeWithAI = ({ navigation, route }) => {
                     base64Content
                   );
                 }
-  
+
                 bodyParts.push(`--${boundary}--`);
                 emailBody = bodyParts.join('\r\n');
               }
-  
-              // Correct Base64 encoding using Buffer (or your base64 library)
-              const base64Encode = (str) => {
-                return Buffer.from(str, 'utf-8')
-                  .toString('base64')
-                  .replace(/\+/g, '-')
-                  .replace(/\//g, '_')
-                  .replace(/=+$/, '');
-              };
-  
-              const rawEmail = base64Encode(emailBody);
-  
+
+              const rawEmail = Buffer.from(emailBody, 'utf-8')
+                .toString('base64')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+
               const response = await fetch(
                 'https://www.googleapis.com/gmail/v1/users/me/messages/send',
                 {
@@ -269,7 +274,7 @@ const ComposeWithAI = ({ navigation, route }) => {
                   body: JSON.stringify({ raw: rawEmail }),
                 }
               );
-  
+
               if (response.ok) {
                 Alert.alert('Success', 'Your email has been sent!');
                 navigation.goBack();
@@ -314,8 +319,18 @@ const ComposeWithAI = ({ navigation, route }) => {
           )
         );
 
+        const newTotalSize = newFiles.reduce((sum, file) => sum + file.size, totalSize);
+        if (newTotalSize > MAX_TOTAL_SIZE) {
+          Alert.alert(
+            'Size Limit Exceeded',
+            `Total attachment size exceeds 30MB. Current total: ${(totalSize / (1024 * 1024)).toFixed(2)}MB. Please remove some files or select smaller ones.`
+          );
+          return;
+        }
+
         if (newFiles.length > 0) {
           setAttachedFiles(prevFiles => [...prevFiles, ...newFiles]);
+          setTotalSize(newTotalSize);
         }
       }
     } catch (err) {
@@ -324,9 +339,11 @@ const ComposeWithAI = ({ navigation, route }) => {
   };
 
   const removeFile = (indexToRemove) => {
+    const fileToRemove = attachedFiles[indexToRemove];
     setAttachedFiles(prevFiles => 
       prevFiles.filter((_, index) => index !== indexToRemove)
     );
+    setTotalSize(prevSize => prevSize - fileToRemove.size);
   };
 
   const renderFilePreview = (file) => {
@@ -425,6 +442,22 @@ const ComposeWithAI = ({ navigation, route }) => {
             placeholderTextColor="#5f6368"
           />
           {toError ? <Text style={styles.errorText}>{toError}</Text> : null}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>CC</Text>
+          <TextInput
+            style={styles.input}
+            value={cc}
+            onChangeText={(text) => {
+              setCc(text);
+              setCcError('');
+            }}
+            placeholder="CC recipients (comma-separated)"
+            placeholderTextColor="#5f6368"
+          />
+          <Text style={styles.ccNote}>Note: Separate multiple emails with commas</Text>
+          {ccError ? <Text style={styles.errorText}>{ccError}</Text> : null}
         </View>
 
         {!generatedEmail && (
@@ -549,6 +582,9 @@ const ComposeWithAI = ({ navigation, route }) => {
                 <Ionicons name="attach" size={isTablet ? 26 : 26} color="#291609" />
                 <Text style={styles.attachButtonText}>Add Attachment</Text>
               </TouchableOpacity>
+              <Text style={styles.sizeInfo}>
+                Total Size: {(totalSize / (1024 * 1024)).toFixed(2)}MB / 30MB
+              </Text>
 
               {attachedFiles.length > 0 && (
                 <View style={styles.attachedFilesContainer}>
@@ -556,7 +592,7 @@ const ComposeWithAI = ({ navigation, route }) => {
                     <View key={index} style={styles.fileItem}>
                       {renderFilePreview(file)}
                       <Text style={styles.fileName} numberOfLines={1}>
-                        {file.name}
+                        {file.name} ({(file.size / 1024).toFixed(2)}KB)
                       </Text>
                       <TouchableOpacity 
                         onPress={() => removeFile(index)}
@@ -838,18 +874,28 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Increased opacity from 0.5 to 0.7 for stronger effect
+    backgroundColor: '#fef9f3',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
-    backdropFilter: 'blur(5px)', // Added blur effect
-    WebkitBackdropFilter: 'blur(5px)', // Added for Safari compatibility
+    zIndex: 10002,
   },
   loadingText: {
     marginTop: 10,
-    color: '#ffffff',
+    color: '#8b5014',
     fontSize: isTablet ? 18 : 16,
     fontWeight: '500',
+  },
+  sizeInfo: {
+    color: '#5f6368',
+    fontSize: isTablet ? 14 : 12,
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  ccNote: {
+    color: '#5f6368',
+    fontSize: isTablet ? 12 : 10,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 
