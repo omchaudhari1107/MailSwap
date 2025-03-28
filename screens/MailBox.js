@@ -449,7 +449,7 @@ const MailBox = ({ route, navigation }) => {
       // else if (category === 'archive') query = '-in:inbox -in:spam -in:trash';
       else query = 'in:inbox -in:spam';
 
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=${query}`, {
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=2&q=${query}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         signal,
       });
@@ -468,11 +468,14 @@ const MailBox = ({ route, navigation }) => {
         const senderName = (senderMatch?.[1] || '').trim();
         const senderEmail = (senderMatch?.[2] || senderMatch?.[1] || '').trim();
 
+        const toHeader = getHeader('To');
+        const recipientEmail = toHeader.trim() || '';
         return {
           id: emailData.id,
           sender: fromHeader,
           senderName: senderName || senderEmail.split('@')[0],
           from: senderEmail,
+          to: recipientEmail,
           subject: getHeader('Subject'),
           preview: emailData.snippet || '',
           body: getEmailBody(emailData.payload),
@@ -497,7 +500,7 @@ const MailBox = ({ route, navigation }) => {
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
-        // console.error('Fetch emails error:', error);
+        console.error('Fetch emails error:', error);
       }
     } finally {
       if (currentCategoryRef.current === category) {
