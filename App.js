@@ -32,8 +32,8 @@ function HomeTabs({ route }) {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#2d1505',
-        tabBarInactiveTintColor: '#2d1505',
+        tabBarActiveTintColor: '#8b5014',
+        tabBarInactiveTintColor: '#8b5014',
         headerShown: false,
         tabBarStyle: {
           backgroundColor: '#fdeadc', // Added tab bar background color

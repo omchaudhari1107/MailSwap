@@ -2,7 +2,7 @@ composeai page:
     multiple tags
 
 email detail
-    file opening, reply button , ui
+    file opening, reply button , ui                                            --email detail page done
 
 mainpage
     two buttons (footer), searching, company name for logo 

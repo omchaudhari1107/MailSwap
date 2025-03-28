@@ -41,6 +41,7 @@ const isValidEmailList = (emails) => {
 
 const ComposeWithAI = ({ navigation, route }) => {
   const [from, setFrom] = useState('');
+  const [editable,setIsEditable] = useState(true)
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [subject, setSubject] = useState('');
@@ -62,9 +63,15 @@ const ComposeWithAI = ({ navigation, route }) => {
 
   const generatedEmailRef = useRef(null);
   const user = route.params?.user || {};
+  const send_to = route.params?.email?.from || '';
   const tones = ['Professional', 'Casual', 'Formal', 'Brief'];
   const lengths = ['Short', 'Medium', 'Long'];
-
+  useEffect(() => {
+    if (send_to) {
+      setTo(send_to);
+      setIsEditable(false) // Pre-fill "To" field for replies
+    }
+  }, [send_to]);
   useEffect(() => {
     if (generatedEmail && !displayedEmail) {
       setIsTyping(true);
@@ -83,22 +90,20 @@ const ComposeWithAI = ({ navigation, route }) => {
   
     // Handle hardware back button
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (hasUnsavedChanges()) {
+      // if (hasUnsavedChanges()) {
         Alert.alert(
           'Discard Changes?',
-          'You have unsaved changes. Are you sure you want to discard them and go back?',
+          'Any changes made to this email format will be lost, are you sure you want to go back?',
           [
             { text: 'Cancel', style: 'cancel' },
             {
-              text: 'Discard',
+              text: 'Yes',
               style: 'destructive',
               onPress: () => navigation.goBack(),
             },
           ]
         );
-        return true; // Prevent default back action
-      }
-      return false; // Allow default back action
+        return true; 
     });
   
     // Cleanup the event listener on unmount
@@ -112,7 +117,7 @@ const ComposeWithAI = ({ navigation, route }) => {
     const type = () => {
       if (i < text.length) {
         setDisplayedEmail(text.substring(0, i + 1));
-        // Vibration.vibrate(3);
+        // Vibration.vibrate(1);
         i++;
         setTimeout(type, speed);
       } else {
@@ -196,34 +201,20 @@ const ComposeWithAI = ({ navigation, route }) => {
     }
   };
 
-  const hasUnsavedChanges = () => {
-    return (
-      to.trim() !== '' ||
-      cc.trim() !== '' ||
-      subject.trim() !== '' ||
-      prompt.trim() !== '' ||
-      generatedEmail.trim() !== '' ||
-      attachedFiles.length > 0
-    );
-  };
-
   const handleBackPress = () => {
-    if (hasUnsavedChanges()) {
       Alert.alert(
         'Discard Changes?',
-        'You have unsaved changes. Are you sure you want to discard them and go back?',
+        'Any changes made to this email format will be lost, are you sure you want to go back?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Discard',
+            text: 'Yes',
             style: 'destructive',
             onPress: () => navigation.goBack(),
           },
         ]
       );
-      return true; // Prevent default back action
-    }
-    return false; // Allow default back action if no changes
+      return true;
   };
 
   const sendEmail = async () => {
@@ -497,6 +488,7 @@ const ComposeWithAI = ({ navigation, route }) => {
           <TextInput
             style={styles.input}
             value={to}
+            editable={editable}
             onChangeText={(text) => {
               setTo(text);
               setToError('');

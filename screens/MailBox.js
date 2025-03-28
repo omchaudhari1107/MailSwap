@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { Buffer } from 'buffer';
 let tokenCache = { accessToken: null, expiresAt: 0 };
 const TOKEN_REFRESH_BUFFER = 300000;
 
@@ -64,140 +64,178 @@ const getEmailBody = (payload) => {
         mimeType: part.mimeType,
         attachmentId: part.body.attachmentId,
         size: part.body.size,
-        data: part.body.data,
+        data: part.body.data, // Base64-encoded data if available
       };
     };
 
+    // Decode base64 utility (assuming you have this defined elsewhere)
+    const decodeBase64 = (data) => {
+      // Replace with your actual base64 decoding logic if not using Buffer
+      return Buffer.from(data, 'base64').toString('utf-8');
+    };
+
+    let textContent = ''; // Variable to store text data
+    let attachmentsContent = ''; // Variable to store attachments HTML
+    let attachments = []; // Array to store attachment details
+
+    // Handle payload.body directly if it contains data
     if (payload.body?.data) {
-      if (payload.mimeType.startsWith('image/')) {
-        return `<img src="data:${payload.mimeType};base64,${payload.body.data}" style="max-width: 100%; height: auto;" onclick="window.ReactNativeWebView.postMessage(JSON.stringify({type: 'openAttachment', mimeType: '${payload.mimeType}', data: '${payload.body.data}', filename: '${payload.filename || "image"}'}))"/>`;
+      if (payload.mimeType === 'text/html' || payload.mimeType === 'text/plain') {
+        textContent = decodeBase64(payload.body.data);
+      } else if (payload.mimeType.startsWith('image/') && payload.body.data) {
+        attachments.push(getAttachmentInfo(payload));
       }
-      return decodeBase64(payload.body.data);
+      // For non-text direct body data, treat as attachment
     }
 
-    switch (payload.mimeType) {
-      case 'text/html':
-      case 'text/plain':
-        return payload.body?.data ? decodeBase64(payload.body.data) : '';
-      case 'multipart/alternative':
-      case 'multipart/mixed':
-      case 'multipart/related':
-      case 'multipart/report':
-        if (!payload.parts) return '';
-        let mainContent = '';
-        let attachments = [];
+    // Process parts for multipart MIME types
+    if (payload.parts && payload.mimeType.startsWith('multipart/')) {
+      // First pass: Extract text content
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/html') {
+          textContent = decodeBase64(part.body.data);
+          break; // Prefer HTML over plain text
+        }
+      }
+      if (!textContent) {
         for (const part of payload.parts) {
-          if (part.mimeType === 'text/html') {
-            mainContent = getEmailBody(part);
+          if (part.mimeType === 'text/plain') {
+            textContent = decodeBase64(part.body.data);
             break;
           }
         }
-        if (!mainContent) {
+      }
+
+      // Second pass: Collect attachments
+      for (const part of payload.parts) {
+        if (
+          part.filename ||
+          part.mimeType.startsWith('application/') ||
+          part.mimeType.startsWith('audio/') ||
+          part.mimeType.startsWith('video/') ||
+          part.mimeType.startsWith('image/')
+        ) {
+          attachments.push(getAttachmentInfo(part));
+        } else if (part.mimeType === 'multipart/related' && part.parts) {
+          // Handle nested multipart/related (e.g., inline images)
+          for (const subPart of part.parts) {
+            if (
+              subPart.filename ||
+              subPart.mimeType.startsWith('application/') ||
+              subPart.mimeType.startsWith('audio/') ||
+              subPart.mimeType.startsWith('video/') ||
+              subPart.mimeType.startsWith('image/')
+            ) {
+              attachments.push(getAttachmentInfo(subPart));
+            }
+          }
+        }
+      }
+    }
+
+    // Handle specific single-part MIME types
+    switch (payload.mimeType) {
+      case 'message/rfc822':
+        if (payload.parts) {
+          const nestedContent = getEmailBody(payload.parts[0]);
+          textContent = nestedContent; // Recursive call might need adjustment based on structure
+        }
+        break;
+      case 'text/enriched':
+        if (payload.body?.data) {
+          textContent = decodeBase64(payload.body.data)
+            .replace(/\n/g, '<br>')
+            .replace(/<</g, '<')
+            .replace(/>>/g, '>');
+        }
+        break;
+      case 'application/pdf':
+      case 'application/msword':
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      case 'image/jpeg':
+      case 'image/png':
+      case 'image/gif':
+      case 'video/mp4':
+      case 'video/quicktime':
+      case 'audio/mpeg':
+      case 'audio/wav':
+      case 'text/calendar':
+        if (payload.body?.data || payload.body?.attachmentId) {
+          attachments.push(getAttachmentInfo(payload));
+        }
+        textContent = `[${payload.mimeType} content]`;
+        break;
+      default:
+        if (payload.parts && !textContent) {
           for (const part of payload.parts) {
-            if (part.mimeType === 'text/plain') {
-              mainContent = getEmailBody(part);
+            const content = getEmailBody(part);
+            if (content) {
+              textContent = content;
               break;
             }
           }
         }
-        for (const part of payload.parts) {
-          if (
-            part.filename ||
-            part.mimeType.startsWith('application/') ||
-            part.mimeType.startsWith('audio/') ||
-            part.mimeType.startsWith('video/') ||
-            part.mimeType.startsWith('image/')
-          ) {
-            attachments.push(getAttachmentInfo(part));
-          }
-        }
-        if (attachments.length > 0) {
-          mainContent += '<div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">';
-          mainContent += '<h3>Attachments:</h3>';
-          mainContent += '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
-          attachments.forEach((attachment) => {
-            const icon = (() => {
-              if (attachment.mimeType.startsWith('image/')) {
-                return attachment.data
-                  ? `<img src="data:${attachment.mimeType};base64,${attachment.data}" style="width: 100px; height: 100px; object-fit: cover;" />`
-                  : '📷';
-              }
-              switch (true) {
-                case /pdf/.test(attachment.mimeType): return '📄';
-                case /word|docx?/.test(attachment.mimeType): return '📝';
-                case /powerpoint|pptx?/.test(attachment.mimeType): return '📊';
-                case /excel|xlsx?/.test(attachment.mimeType): return '📈';
-                case /video/.test(attachment.mimeType): return '🎥';
-                case /audio/.test(attachment.mimeType): return '🎵';
-                case /zip|rar|7z/.test(attachment.mimeType): return '🗜️';
-                default: return '📎';
-              }
-            })();
-            const size = (() => {
-              const bytes = attachment.size;
-              if (bytes < 1024) return `${bytes} B`;
-              if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-              return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-            })();
-            mainContent += `
-              <div 
-                style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; width: 150px; text-align: center; cursor: pointer;"
-                onclick="window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'openAttachment',
-                  mimeType: '${attachment.mimeType}',
-                  attachmentId: '${attachment.attachmentId}',
-                  filename: '${attachment.filename}',
-                  data: '${attachment.data || ''}'
-                }))"
-              >
-                <div style="font-size: 32px; margin-bottom: 5px;">${icon}</div>
-                <div style="font-size: 12px; word-break: break-word;">${attachment.filename}</div>
-                <div style="font-size: 10px; color: #666;">${size}</div>
-              </div>
-            `;
-          });
-          mainContent += '</div></div>';
-        }
-        return mainContent;
-      case 'message/rfc822':
-        return payload.parts ? getEmailBody(payload.parts[0]) : '';
-      case 'application/pdf':
-      case 'application/msword':
-      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        return '[Document Attachment]';
-      case 'image/jpeg':
-      case 'image/png':
-      case 'image/gif':
-        return '[Image Attachment]';
-      case 'video/mp4':
-      case 'video/quicktime':
-        return '[Video Attachment]';
-      case 'audio/mpeg':
-      case 'audio/wav':
-        return '[Audio Attachment]';
-      case 'text/calendar':
-        return '[Calendar Invitation]';
-      case 'text/enriched':
-        return payload.body?.data
-          ? decodeBase64(payload.body.data)
-            .replace(/\n/g, '<br>')
-            .replace(/<</g, '<')
-            .replace(/>>/g, '>')
-          : '';
-      default:
-        if (payload.parts) {
-          for (const part of payload.parts) {
-            const content = getEmailBody(part);
-            if (content) return content;
-          }
-        }
-        return `[${payload.mimeType} content]`;
+        break;
     }
+
+    // Build attachments HTML
+    if (attachments.length > 0) {
+      attachmentsContent = '<div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">';
+      attachmentsContent += '<h3>Attachments:</h3>';
+      attachmentsContent += '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+      attachments.forEach((attachment) => {
+        const size = (() => {
+          const bytes = attachment.size;
+          if (bytes < 1024) return `${bytes} B`;
+          if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+          return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        })();
+
+        let iconOrThumbnail = '📎'; // Default icon
+        if (attachment.mimeType.startsWith('image/') && attachment.data) {
+          // Thumbnail for images with data
+          iconOrThumbnail = `<img src="data:${attachment.mimeType};base64,${attachment.data}" style="width: 100px; height: 100px; object-fit: cover;" />`;
+        } else {
+          switch (true) {
+            case /pdf/.test(attachment.mimeType): iconOrThumbnail = '📄'; break;
+            case /word|docx?/.test(attachment.mimeType): iconOrThumbnail = '📝'; break;
+            case /powerpoint|pptx?/.test(attachment.mimeType): iconOrThumbnail = '📊'; break;
+            case /excel|xlsx?/.test(attachment.mimeType): iconOrThumbnail = '📈'; break;
+            case /video/.test(attachment.mimeType): iconOrThumbnail = '🎥'; break;
+            case /audio/.test(attachment.mimeType): iconOrThumbnail = '🎵'; break;
+            case /zip|rar|7z/.test(attachment.mimeType): iconOrThumbnail = '🗜️'; break;
+            case /image/.test(attachment.mimeType): iconOrThumbnail = '📷'; break;
+          }
+        }
+
+        attachmentsContent += `
+          <div 
+            style="border: 1px solid #ddd; padding: 10px; border-radius: 8px; width: 150px; text-align: center; cursor: pointer;"
+            onclick="window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'openAttachment',
+              mimeType: '${attachment.mimeType}',
+              attachmentId: '${attachment.attachmentId || ''}',
+              filename: '${attachment.filename}',
+              data: '${attachment.data || ''}'
+            }))"
+          >
+            <div style="font-size: ${attachment.data && attachment.mimeType.startsWith('image/') ? '0' : '32px'}; margin-bottom: 5px;">${iconOrThumbnail}</div>
+            <div style="font-size: 12px; word-break: break-word;">${attachment.filename}</div>
+            <div style="font-size: 10px; color: #666;">${size}</div>
+          </div>
+        `;
+      });
+      attachmentsContent += '</div></div>';
+    }
+
+    // Combine text and attachments, ensuring text comes first
+    return textContent + (attachmentsContent || '');
   } catch (error) {
     console.error('Error getting email body:', error, 'Payload:', payload);
     return '[Error: Could not decode email content]';
   }
 };
+
 
 const LETTER_COLORS = {
   A: '#FF6B6B', B: '#4ECDC4', C: '#45B7D1', D: '#96CEB4', E: '#FFEEAD',

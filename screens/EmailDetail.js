@@ -15,6 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing'; // For opening files with local apps
 
 // Utility Functions
 const getGoogleToken = async () => {
@@ -94,16 +96,38 @@ const toggleEmailStar = async (emailId, isStarred, accessToken) => {
   }
 };
 
-// Configure Google Sign-In (call this in your app's entry point or before using this component)
+// Fetch attachment from Gmail API
+const getAttachment = async (emailId, attachmentId, accessToken) => {
+  try {
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}/attachments/${attachmentId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    if (!response.ok) throw new Error('Failed to fetch attachment');
+    const data = await response.json();
+    return data; // Contains { data: "base64-encoded-string", size: number }
+  } catch (error) {
+    console.error('Error fetching attachment:', error);
+    throw error;
+  }
+};
+
+// Configure Google Sign-In
 GoogleSignin.configure({
-  scopes: ['https://www.googleapis.com/auth/gmail.modify'], // Scope for modifying emails
-  webClientId: 'YOUR_WEB_CLIENT_ID', // Replace with your actual Web Client ID from Google Cloud Console
+  scopes: ['https://www.googleapis.com/auth/gmail.modify'],
+  webClientId: 'YOUR_WEB_CLIENT_ID', // Replace with your actual Web Client ID
 });
 
 const EmailDetail = ({ route, navigation }) => {
-  const { email, avatarInfo,user } = route.params;
+  const { email, avatarInfo, user } = route.params;
+  // console.log('EmailDetail', email);
   const [isStarred, setIsStarred] = useState(email.isStarred || false);
-  const [isArchived, setIsArchived] = useState(!email.labelIds?.includes('INBOX') || false); // Check if email is archived initially
+  const [isArchived, setIsArchived] = useState(!email.labelIds?.includes('INBOX') || false);
   const [showFullHeader, setShowFullHeader] = useState(false);
   const [webViewHeight, setWebViewHeight] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +168,7 @@ const EmailDetail = ({ route, navigation }) => {
           try {
             const accessToken = await getGoogleToken();
             await deleteEmail(email.id, accessToken);
-            navigation.goBack(); // Navigate back after successful deletion
+            navigation.goBack();
           } catch (error) {
             Alert.alert('Error', 'Failed to delete email');
           }
@@ -163,15 +187,13 @@ const EmailDetail = ({ route, navigation }) => {
           try {
             const accessToken = await getGoogleToken();
             if (isArchived) {
-              // Unarchive: Add INBOX label
               await modifyEmailLabels(email.id, accessToken, ['INBOX'], []);
               setIsArchived(false);
             } else {
-              // Archive: Remove INBOX label
               await modifyEmailLabels(email.id, accessToken, [], ['INBOX']);
               setIsArchived(true);
             }
-            navigation.goBack(); // Navigate back after action
+            navigation.goBack();
           } catch (error) {
             Alert.alert('Error', `Failed to ${action.toLowerCase()} email`);
           }
@@ -191,13 +213,77 @@ const EmailDetail = ({ route, navigation }) => {
     }
   }, [email.id, isStarred]);
 
+  const handleDownloadAndOpenAttachment = useCallback(async (attachment) => {
+    try {
+      const accessToken = await getGoogleToken();
+      let base64Data;
+
+      if (attachment.data) {
+        base64Data = attachment.data;
+      } else if (attachment.attachmentId) {
+        const attachmentData = await getAttachment(email.id, attachment.attachmentId, accessToken);
+        base64Data = attachmentData.data.replace(/-/g, '+').replace(/_/g, '/'); // Convert URL-safe base64
+      } else {
+        throw new Error('No attachment data available');
+      }
+
+      // Create a downloads subdirectory if it doesn't exist
+      const downloadDir = `${FileSystem.documentDirectory}downloads/`;
+      await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+
+      // Define file path in the downloads subdirectory
+      let fileUri = `${downloadDir}${attachment.filename}`;
+
+      // Ensure the filename is unique
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists) {
+        const extension = attachment.filename.split('.').pop();
+        const nameWithoutExt = attachment.filename.replace(`.${extension}`, '');
+        fileUri = `${downloadDir}${nameWithoutExt}_${Date.now()}.${extension}`;
+      }
+
+      // Write file to filesystem
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Check if sharing is available and open the file
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: attachment.mimeType, // Pass the MIME type for better app selection
+          dialogTitle: `Open ${attachment.filename} with`,
+        });
+      } else {
+        Alert.alert('Success', `${attachment.filename} downloaded to app storage, but opening is not supported on this device`);
+      }
+    } catch (error) {
+      console.error('Error downloading or opening attachment:', error);
+      Alert.alert('Error', 'Failed to download or open attachment');
+    }
+  }, [email.id]);
+
   const handleWebViewMessage = useCallback((event) => {
     const data = event.nativeEvent.data;
     if (!isNaN(data)) {
       setWebViewHeight(parseInt(data));
       setIsLoading(false);
+    } else {
+      try {
+        const message = JSON.parse(data);
+        if (message.type === 'openAttachment') {
+          handleDownloadAndOpenAttachment({
+            filename: message.filename,
+            mimeType: message.mimeType,
+            attachmentId: message.attachmentId,
+            data: message.data,
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing WebView message:', error);
+      }
     }
-  }, []);
+  }, [handleDownloadAndOpenAttachment]);
 
   // Skeleton Loader Component
   const SkeletonLoader = () => (
@@ -224,7 +310,7 @@ const EmailDetail = ({ route, navigation }) => {
           img { max-width: 100%; height: auto; }
           a { color: #1a0dab; text-decoration: none; }
           a:hover { text-decoration: underline; }
-          pre { white-space: pre-wrap; word-wrap: break-word; background: #f8e5d6; padding: 8px; borderRadius: 4px; }
+          pre { white-space: pre-wrap; word-wrap: break-word; background: #f8e5d6; padding: 8px; border-radius: 4px; }
           blockquote { border-left: 2px solid #dadce0; margin: 0; padding-left: 12px; color: #5f6368; }
         </style>
       </head>
@@ -248,9 +334,6 @@ const EmailDetail = ({ route, navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#332b23" />
           </TouchableOpacity>
           <View style={styles.headerActions}>
-            {/* <TouchableOpacity style={styles.iconButton} onPress={handleArchive}>
-              <Ionicons name={isArchived ? 'archive' : 'archive-outline'} size={24} color="#332b23" />
-            </TouchableOpacity> */}
             <TouchableOpacity style={styles.iconButton} onPress={handleDelete}>
               <Ionicons name="trash-outline" size={24} color="#332b23" />
             </TouchableOpacity>
@@ -289,7 +372,7 @@ const EmailDetail = ({ route, navigation }) => {
               </Text>
               <TouchableOpacity onPress={() => setShowFullHeader((prev) => !prev)}>
                 <Text style={styles.recipientText} numberOfLines={1}>
-                  {email.sender.includes('<') ? email.sender.match(/<(.+?)>/)[1] : email.sender} • to me
+                  {email.sender.includes('<') ? email.sender.match(/<(.+?)>/)[1] : email.sender} • to {email.reciver}
                   <Ionicons name={showFullHeader ? 'chevron-up' : 'chevron-down'} size={16} color="#332b23" style={styles.expandIcon} />
                 </Text>
               </TouchableOpacity>
@@ -321,7 +404,9 @@ const EmailDetail = ({ route, navigation }) => {
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
             scrollEnabled={false}
-            style={styles.webView}
+            
+   
+style={styles.webView}
           />
           {isLoading && (
             <View style={styles.loadingOverlay}>
@@ -332,17 +417,14 @@ const EmailDetail = ({ route, navigation }) => {
       </ScrollView>
 
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.actionButton} onPress={() => { }}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => {navigation.navigate('ComposeWithAI', { email, user })}}>
           <Ionicons name="arrow-undo-outline" size={24} color="#ffdbc1" />
           <Text style={styles.actionButtonText}>Reply</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('ForwardEmail', {
-            email: email,  // If email is a single value
-            // OR if email is an object with more properties:
-            // email: { ...email, attachments: email.attachments || [] },
-            user: user,
-          })
-        }>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('ForwardEmail', { email, user })}
+        >
           <Ionicons name="arrow-redo-outline" size={24} color="#ffdbc1" />
           <Text style={styles.actionButtonText}>Forward</Text>
         </TouchableOpacity>
