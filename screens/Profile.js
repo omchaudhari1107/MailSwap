@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   signOutButton: {
     flexDirection: 'row',
-    backgroundColor: '#ffdbc1',
+    backgroundColor: '#8b5014',
     marginHorizontal: 16,
     marginTop: 24,
     marginBottom: 16,
@@ -218,10 +218,10 @@ const styles = StyleSheet.create({
   },
   signOutIcon: {
     marginRight: 8,
-    color: '#291609',
+    color: '#ffdbc1',
   },
   signOutText: {
-    color: '#291609',
+    color: '#ffdbc1',
     fontSize: 16,
     fontWeight: '600',
   },
