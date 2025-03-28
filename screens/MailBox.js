@@ -449,7 +449,7 @@ const MailBox = ({ route, navigation }) => {
       // else if (category === 'archive') query = '-in:inbox -in:spam -in:trash';
       else query = 'in:inbox -in:spam';
 
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=2&q=${query}`, {
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${query}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         signal,
       });
