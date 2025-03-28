@@ -11,13 +11,14 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Vibration
+  // Vibration
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import Together from "together-ai";
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { Buffer } from 'buffer';
+import { BackHandler } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 
 const together = new Together({ apiKey: '2cda797bb6a09cd4367dbf7b6b66077fccb989130376cbb5b1bd634040c1e3e9' });
@@ -70,8 +71,40 @@ const ComposeWithAI = ({ navigation, route }) => {
       setIsGenerating(false);
       typeWriterEffect(generatedEmail);
     }
-  }, [generatedEmail]);
-
+  
+    // Override the UI back button behavior
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={handleBackPress}>
+          <Ionicons name="arrow-back" size={isTablet ? 28 : 24} color="#000000" style={styles.boldIcon} />
+        </TouchableOpacity>
+      ),
+    });
+  
+    // Handle hardware back button
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (hasUnsavedChanges()) {
+        Alert.alert(
+          'Discard Changes?',
+          'You have unsaved changes. Are you sure you want to discard them and go back?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Discard',
+              style: 'destructive',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+        return true; // Prevent default back action
+      }
+      return false; // Allow default back action
+    });
+  
+    // Cleanup the event listener on unmount
+    return () => backHandler.remove();
+  }, [generatedEmail, navigation, to, cc, subject, prompt, generatedEmail, attachedFiles]);
+  
   const typeWriterEffect = (text) => {
     let i = 0;
     const speed = 5;
@@ -79,7 +112,7 @@ const ComposeWithAI = ({ navigation, route }) => {
     const type = () => {
       if (i < text.length) {
         setDisplayedEmail(text.substring(0, i + 1));
-        Vibration.vibrate(30);
+        // Vibration.vibrate(3);
         i++;
         setTimeout(type, speed);
       } else {
@@ -161,6 +194,36 @@ const ComposeWithAI = ({ navigation, route }) => {
       setToError('Failed to generate email. Please try again.');
       console.error('Email generation error:', error);
     }
+  };
+
+  const hasUnsavedChanges = () => {
+    return (
+      to.trim() !== '' ||
+      cc.trim() !== '' ||
+      subject.trim() !== '' ||
+      prompt.trim() !== '' ||
+      generatedEmail.trim() !== '' ||
+      attachedFiles.length > 0
+    );
+  };
+
+  const handleBackPress = () => {
+    if (hasUnsavedChanges()) {
+      Alert.alert(
+        'Discard Changes?',
+        'You have unsaved changes. Are you sure you want to discard them and go back?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+      return true; // Prevent default back action
+    }
+    return false; // Allow default back action if no changes
   };
 
   const sendEmail = async () => {
@@ -401,7 +464,7 @@ const ComposeWithAI = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+      <TouchableOpacity onPress={handleBackPress}>
           <Ionicons name="arrow-back" size={isTablet ? 28 : 24} color="#000000" style={styles.boldIcon} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.profileHeader}>
@@ -624,8 +687,10 @@ const ComposeWithAI = ({ navigation, route }) => {
 
       {isSending && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#8b5014" />
-          <Text style={styles.loadingText}>Sending Email...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#8b5014" />
+            <Text style={styles.loadingText}>Sending Email...</Text>
+          </View>
         </View>
       )}
     </View>
@@ -647,7 +712,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f3f4',
     zIndex: 1001,
-    height: HEADER_HEIGHT,
+    // height: HEADER_HEIGHT,
     width: '100%',
     position: 'fixed',
     top: 50,
@@ -869,21 +934,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#a68a6b',
   },
   loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#fef9f3',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10002,
+    zIndex:1002,
+  },
+  loadingContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
   },
   loadingText: {
     marginTop: 10,
-    color: '#8b5014',
-    fontSize: isTablet ? 18 : 16,
-    fontWeight: '500',
+    fontSize: 16,
+    color: '#332b23',
   },
   sizeInfo: {
     color: '#5f6368',

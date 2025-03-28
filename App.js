@@ -10,6 +10,7 @@ import Profile from './screens/Profile';
 import MailBox from './screens/MailBox';
 import EmailDetail from './screens/EmailDetail';
 import ComposeWithAI from './screens/ComposeWithAI';
+import ForwardEmailScreen from './screens/ForwardEmailScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -70,6 +71,11 @@ export default function App() {
         <Stack.Screen 
           name="EmailDetail" 
           component={EmailDetail}
+          options={{ headerShown: false }}
+        />
+       <Stack.Screen 
+          name="ForwardEmail" 
+          component={ForwardEmailScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen 

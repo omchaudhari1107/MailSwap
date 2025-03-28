@@ -645,7 +645,6 @@ const handleSelectAll = useCallback(() => {
         </Text>
       );
     };
-
     const handlePress = async () => {
       if (isSelectionMode) {
         handleAvatarPress(item.id);

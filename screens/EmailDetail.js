@@ -101,7 +101,7 @@ GoogleSignin.configure({
 });
 
 const EmailDetail = ({ route, navigation }) => {
-  const { email, avatarInfo } = route.params;
+  const { email, avatarInfo,user } = route.params;
   const [isStarred, setIsStarred] = useState(email.isStarred || false);
   const [isArchived, setIsArchived] = useState(!email.labelIds?.includes('INBOX') || false); // Check if email is archived initially
   const [showFullHeader, setShowFullHeader] = useState(false);
@@ -336,7 +336,13 @@ const EmailDetail = ({ route, navigation }) => {
           <Ionicons name="arrow-undo-outline" size={24} color="#ffdbc1" />
           <Text style={styles.actionButtonText}>Reply</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={() => { }}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('ForwardEmail', {
+            email: email,  // If email is a single value
+            // OR if email is an object with more properties:
+            // email: { ...email, attachments: email.attachments || [] },
+            user: user,
+          })
+        }>
           <Ionicons name="arrow-redo-outline" size={24} color="#ffdbc1" />
           <Text style={styles.actionButtonText}>Forward</Text>
         </TouchableOpacity>
