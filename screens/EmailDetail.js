@@ -143,22 +143,32 @@ const fetchThreadId = async (messageId, accessToken) => {
 // AI Reply Generation Function
 const generateReply = async (originalMessage, userPrompt, email, user, setGeneratedReply) => {
   try {
-    const lowerMessage = originalMessage.toLowerCase();
+    // Truncate originalMessage to a reasonable length (e.g., 4000 characters or estimate ~3000 tokens)
+    const maxInputLength = 4000; // Adjust this based on your needs
+    const truncatedMessage = originalMessage.length > maxInputLength 
+      ? originalMessage.substring(0, maxInputLength) + "..." 
+      : originalMessage;
+
+    const lowerMessage = truncatedMessage.toLowerCase();
     let tone = 'neutral';
     if (lowerMessage.includes('urgent') || lowerMessage.includes('important')) tone = 'formal';
     else if (lowerMessage.includes('thanks') || lowerMessage.includes('great')) tone = 'friendly';
     else if (lowerMessage.includes('sorry') || lowerMessage.includes('issue')) tone = 'apologetic';
 
     const aiPrompt = `
-      Generate an email reply to the following message: "${originalMessage}"
+      Generate an email reply to the following message: "${truncatedMessage}"
       User prompt: "${userPrompt}"
       Tone: ${tone}
       Keep it concise and professional. Do not include a subject line.
+      user: ${user.name || 'You'}
+      sender email: ${email.from || 'Sender'} - try to get name from it
+      Recver email(me): ${email.to || 'Recipient'} - try to get name from it
     `;
 
     const response = await together.chat.completions.create({
       messages: [{"role": "user", "content": aiPrompt}],
       model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+      max_tokens: 500, // Reduce max_new_tokens to leave buffer
     });
 
     const generatedContent = response.choices[0].message.content;
@@ -169,7 +179,6 @@ const generateReply = async (originalMessage, userPrompt, email, user, setGenera
     setGeneratedReply(fallbackText);
   }
 };
-
 // Updated sendEmailReply Function
 const sendEmailReply = async (accessToken, to, subject, generatedReply, threadId, messageId, userName) => {
   try {
@@ -467,14 +476,38 @@ const EmailDetail = ({ route, navigation }) => {
   }, [generatedReply, email.sender, email.subject, email.threadId, email.id, user.name]);
 
   const handleToggleReplyModal = useCallback(() => {
-    setShowReplyModal((prev) => !prev);
-    if (showReplyModal) {
-      setReplyPrompt('');
-      setGeneratedReply('');
-      setIsEditing(false);
-      setIsGenerating(false);
+    if (showReplyModal && generatedReply) {
+      Alert.alert(
+        'Unsent Reply',
+        'Your reply hasn\'t been sent yet. Are you sure you want to close?',
+        [
+          {
+            text: 'No',
+            style: 'cancel',
+          },
+          {
+            text: 'Yes',
+            onPress: () => {
+              setShowReplyModal(false);
+              setReplyPrompt('');
+              setGeneratedReply('');
+              setIsEditing(false);
+              setIsGenerating(false);
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } else {
+      setShowReplyModal((prev) => !prev);
+      if (showReplyModal) {
+        setReplyPrompt('');
+        setGeneratedReply('');
+        setIsEditing(false);
+        setIsGenerating(false);
+      }
     }
-  }, [showReplyModal]);
+  }, [showReplyModal, generatedReply]);
 
   const handleEditReply = useCallback(() => {
     setIsEditing(true);
@@ -572,7 +605,7 @@ const EmailDetail = ({ route, navigation }) => {
               </Text>
               <TouchableOpacity onPress={() => setShowFullHeader((prev) => !prev)}>
                 <Text style={styles.recipientText} numberOfLines={1}>
-                  {email.sender.includes('<') ? email.sender.match(/<(.+?)>/)[1] : email.from} • to {email.reciver}
+                  to {email.to}
                   <Ionicons name={showFullHeader ? 'chevron-up' : 'chevron-down'} size={16} color="#332b23" style={styles.expandIcon} />
                 </Text>
               </TouchableOpacity>
@@ -615,102 +648,107 @@ const EmailDetail = ({ route, navigation }) => {
       </ScrollView>
 
       <Modal
-        visible={showReplyModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleToggleReplyModal}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.replySectionTitle}>Reply</Text>
-              <TouchableOpacity onPress={handleToggleReplyModal}>
-                <Ionicons name="close" size={24} color="#332b23" />
-              </TouchableOpacity>
-            </View>
+  visible={showReplyModal}
+  animationType="slide"
+  transparent={true}
+  onRequestClose={handleToggleReplyModal}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.replySectionTitle}>Reply</Text>
+          <TouchableOpacity onPress={handleToggleReplyModal}>
+            <Ionicons name="close" size={24} color="#332b23" />
+          </TouchableOpacity>
+        {/* {generatedReply && ( // Show close button only when generatedReply exists
+        )} */}
+      </View>
 
-            {!generatedReply ? (
-              <>
-                <TextInput
-                  style={styles.promptInput}
-                  placeholder="Enter your prompt (e.g., ' Agree to the meeting time')"
-                  value={replyPrompt}
-                  onChangeText={setReplyPrompt}
-                  multiline
-                />
+      {!generatedReply ? (
+        <>
+          <TextInput
+            style={styles.promptInput}
+            placeholder="Enter your prompt (e.g., ' Agree to the meeting time')"
+            value={replyPrompt}
+            onChangeText={setReplyPrompt}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+            onPress={handleGenerateReply}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="refresh" size={20} color="#ffdbc1" />
+              </Animated.View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
+                <Text style={styles.generateButtonText}>Generate Reply</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <View style={styles.replyPreview}>
+          <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
+          {isEditing ? (
+            <>
+              <TextInput
+                style={styles.editInput}
+                value={editedReply}
+                onChangeText={setEditedReply}
+                multiline
+                autoFocus
+              />
+              <View style={styles.replyActions}>
                 <TouchableOpacity
-                  style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
-                  onPress={handleGenerateReply}
-                  disabled={isGenerating}
+                  style={styles.iconButton}
+                  onPress={handleSaveEdit}
                 >
-                  {isGenerating ? (
+                  <Ionicons name="checkmark" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => setIsEditing(false)}
+                >
+                  <Ionicons name="close" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.replyPreviewText}>{generatedReply}</Text>
+              <View style={styles.replyActions}>
+                <TouchableOpacity
+                  style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+                  onPress={handleSendReply}
+                  disabled={isSending}
+                >
+                  {isSending ? (
                     <Animated.View style={{ transform: [{ rotate: spin }] }}>
                       <Ionicons name="refresh" size={20} color="#ffdbc1" />
                     </Animated.View>
                   ) : (
-                    <Text style={styles.generateButtonText}>Generate Reply</Text>
+                    <Text style={styles.sendButtonText}>Send</Text>
                   )}
                 </TouchableOpacity>
-              </>
-            ) : (
-              <View style={styles.replyPreview}>
-                <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
-                {isEditing ? (
-                  <>
-                    <TextInput
-                      style={styles.editInput}
-                      value={editedReply}
-                      onChangeText={setEditedReply}
-                      multiline
-                      autoFocus
-                    />
-                    <View style={styles.replyActions}>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={handleSaveEdit}
-                      >
-                        <Ionicons name="checkmark" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => setIsEditing(false)}
-                      >
-                        <Ionicons name="close" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.replyPreviewText}>{generatedReply}</Text>
-                    <View style={styles.replyActions}>
-                      <TouchableOpacity
-                        style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
-                        onPress={handleSendReply}
-                        disabled={isSending}
-                      >
-                        {isSending ? (
-                          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                            <Ionicons name="refresh" size={20} color="#ffdbc1" />
-                          </Animated.View>
-                        ) : (
-                          <Text style={styles.sendButtonText}>Send</Text>
-                        )}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={handleEditReply}
-                        disabled={isSending}
-                      >
-                        <Ionicons name="pencil" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleEditReply}
+                  disabled={isSending}
+                >
+                  <Ionicons name="pencil" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
+            </>
+          )}
         </View>
-      </Modal>
+      )}
+    </View>
+  </View>
+</Modal>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.actionButton} onPress={handleToggleReplyModal}>
@@ -839,6 +877,9 @@ const styles = StyleSheet.create({
   sendButtonText: { color: '#ffdbc1', fontSize: 14, fontWeight: '500' },
   sendButtonDisabled: { opacity: 0.7 },
   iconButton: { padding: 8, backgroundColor: '#8b5014', borderRadius: 4 },
+  aiicon: {
+    marginRight: 8, // Adds some space between the icon and text
+  },
 });
 
 export default EmailDetail;

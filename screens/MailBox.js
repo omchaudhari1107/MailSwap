@@ -469,7 +469,8 @@ const MailBox = ({ route, navigation }) => {
         const senderEmail = (senderMatch?.[2] || senderMatch?.[1] || '').trim();
 
         const toHeader = getHeader('To');
-        const recipientEmail = toHeader.trim() || '';
+        const recipientMatch = toHeader.match(/^(.*?)\s*(?:<(.+?)>)?$/);
+        const recipientEmail = (recipientMatch?.[2] || recipientMatch?.[1] || '').trim();
         return {
           id: emailData.id,
           sender: fromHeader,

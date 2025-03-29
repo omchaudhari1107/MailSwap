@@ -20,12 +20,13 @@ import * as FileSystem from 'expo-file-system';
 
 const ForwardEmail = ({ route, navigation }) => {
   const { email, user } = route.params;
+  const [originalAttachments] = useState(email.attachments || []);
   const [from, setFrom] = useState(user.email);
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [subject, setSubject] = useState(`Fwd: ${email.subject}`);
   const [bodyText, setBodyText] = useState('');
-  const [attachments, setAttachments] = useState([]);
+  const [newAttachments, setNewAttachments] = useState([]);
   const [webViewHeight, setWebViewHeight] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -81,7 +82,7 @@ const ForwardEmail = ({ route, navigation }) => {
       });
 
       if (!result.canceled && result.assets) {
-        const newAttachments = result.assets.map(asset => {
+        const newFiles = result.assets.map(asset => {
           const fileSizeMB = asset.size / (1024 * 1024);
           if (fileSizeMB > 20) {
             Alert.alert('Error', `File ${asset.name} exceeds 20MB limit`);
@@ -95,7 +96,7 @@ const ForwardEmail = ({ route, navigation }) => {
           };
         }).filter(Boolean);
 
-        setAttachments(prev => [...prev, ...newAttachments]);
+        setNewAttachments(prev => [...prev, ...newFiles]);
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -104,7 +105,7 @@ const ForwardEmail = ({ route, navigation }) => {
   }, []);
 
   const removeAttachment = useCallback((index) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setNewAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const getGoogleToken = async () => {
@@ -113,6 +114,29 @@ const ForwardEmail = ({ route, navigation }) => {
       return accessToken;
     } catch (error) {
       console.error('Error getting Google token:', error);
+      throw error;
+    }
+  };
+
+  const fetchAttachmentContent = async (messageId, attachmentId, accessToken) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch attachment: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      return data.data; // base64url encoded
+    } catch (error) {
+      console.error('Error fetching attachment:', error);
       throw error;
     }
   };
@@ -130,7 +154,7 @@ const ForwardEmail = ({ route, navigation }) => {
       return;
     }
     if (cc.trim() && !isValidEmailList(cc)) {
-      setCcError('Please enter valid email addresses in CC field, separated by commas.');
+      setCcError('Please enter valid email addresses in CC field.');
       return;
     }
 
@@ -145,6 +169,7 @@ const ForwardEmail = ({ route, navigation }) => {
             setIsSending(true);
             try {
               const accessToken = await getGoogleToken();
+              
 
               const emailData = {
                 to: to,
@@ -166,51 +191,76 @@ const ForwardEmail = ({ route, navigation }) => {
               `;
 
               const boundary = `boundary_${Math.random().toString(36).substring(2)}`;
-              let emailBody = '';
+              let bodyParts = [
+                `To: ${emailData.to}`,
+                ...(emailData.cc ? [`Cc: ${emailData.cc}`] : []),
+                `From: ${emailData.from}`,
+                `Subject: ${emailData.subject}`,
+                `MIME-Version: 1.0`,
+                `Content-Type: multipart/mixed; boundary="${boundary}"`,
+                '',
+                `--${boundary}`,
+                `Content-Type: text/html; charset=UTF-8`,
+                '',
+                htmlMessage,
+              ];
 
-              if (attachments.length === 0) {
-                emailBody = [
-                  `To: ${emailData.to}`,
-                  ...(emailData.cc ? [`Cc: ${emailData.cc}`] : []),
-                  `From: ${emailData.from}`,
-                  `Subject: ${emailData.subject}`,
-                  `Content-Type: text/html; charset=UTF-8`,
-                  '',
-                  htmlMessage,
-                ].join('\r\n');
-              } else {
-                let bodyParts = [
-                  `To: ${emailData.to}`,
-                  ...(emailData.cc ? [`Cc: ${emailData.cc}`] : []),
-                  `From: ${emailData.from}`,
-                  `Subject: ${emailData.subject}`,
-                  `MIME-Version: 1.0`,
-                  `Content-Type: multipart/mixed; boundary="${boundary}"`,
-                  '',
-                  `--${boundary}`,
-                  `Content-Type: text/html; charset=UTF-8`,
-                  '',
-                  htmlMessage,
-                ];
+              // Handle original Gmail attachments
+              if (originalAttachments.length > 0 && email.id) {
+                for (const attachment of originalAttachments) {
+                  if (!attachment.attachmentId) {
+                    continue;
+                  }
+                  try {
+                    const base64Content = await fetchAttachmentContent(
+                      email.id,
+                      attachment.attachmentId,
+                      accessToken
+                    );
+                    // Convert base64url to base64
+                    let formattedBase64 = base64Content.replace(/-/g, '+').replace(/_/g, '/');
+                    while (formattedBase64.length % 4) {
+                      formattedBase64 += '=';
+                    }
 
-                for (const file of attachments) {
-                  const base64Content = await FileSystem.readAsStringAsync(file.uri, {
-                    encoding: FileSystem.EncodingType.Base64,
-                  });
-
-                  bodyParts.push(
-                    `--${boundary}`,
-                    `Content-Type: ${file.type || 'application/octet-stream'}`,
-                    `Content-Disposition: attachment; filename="${file.name}"`,
-                    `Content-Transfer-Encoding: base64`,
-                    '',
-                    base64Content
-                  );
+                    bodyParts.push(
+                      `--${boundary}`,
+                      `Content-Type: ${attachment.mimeType || 'application/octet-stream'}`,
+                      `Content-Disposition: attachment; filename="${attachment.filename}"`,
+                      `Content-Transfer-Encoding: base64`,
+                      '',
+                      formattedBase64
+                    );
+                  } catch (error) {
+                    console.error(`Failed to process attachment ${attachment.filename}:`, error);
+                  }
                 }
-
-                bodyParts.push(`--${boundary}--`);
-                emailBody = bodyParts.join('\r\n');
               }
+
+              // Handle new local attachments
+              if (newAttachments.length > 0) {
+                for (const attachment of newAttachments) {
+                  try {
+                    const base64Content = await FileSystem.readAsStringAsync(attachment.uri, {
+                      encoding: FileSystem.EncodingType.Base64,
+                    });
+
+                    bodyParts.push(
+                      `--${boundary}`,
+                      `Content-Type: ${attachment.type || 'application/octet-stream'}`,
+                      `Content-Disposition: attachment; filename="${attachment.name}"`,
+                      `Content-Transfer-Encoding: base64`,
+                      '',
+                      base64Content
+                    );
+                  } catch (error) {
+                    console.error(`Failed to process new attachment ${attachment.name}:`, error);
+                  }
+                }
+              }
+
+              bodyParts.push(`--${boundary}--`);
+              const emailBody = bodyParts.join('\r\n');
 
               const rawEmail = Buffer.from(emailBody, 'utf-8')
                 .toString('base64')
@@ -235,6 +285,7 @@ const ForwardEmail = ({ route, navigation }) => {
                 navigation.goBack();
               } else {
                 const errorData = await response.json();
+                console.error('Send error:', errorData);
                 throw new Error(errorData.error.message || 'Failed to send email');
               }
             } catch (error) {
@@ -255,7 +306,7 @@ const ForwardEmail = ({ route, navigation }) => {
       return;
     }
     sendEmail();
-  }, [to, cc, subject, bodyText, attachments]);
+  }, [to, cc, subject, bodyText, newAttachments]);
 
   const handleWebViewMessage = useCallback((event) => {
     const data = event.nativeEvent.data;
@@ -272,7 +323,6 @@ const ForwardEmail = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#332b23" />
         </TouchableOpacity>
-        {/* <Text style={styles.headerTitle}>Forward</Text> */}
         <TouchableOpacity onPress={handleSend} style={styles.sendButton} disabled={isSending}>
           <Ionicons name="send" size={24} color={to || cc ? '#8b5014' : '#dadce0'} />
         </TouchableOpacity>
@@ -294,7 +344,7 @@ const ForwardEmail = ({ route, navigation }) => {
         <View style={styles.inputContainer}>
           <Text style={styles.label}>To:</Text>
           <TextInput
-            style={[styles.input, toError ? styles.errorInput : null]}
+            style={[styles.input]}
             value={to}
             onChangeText={setTo}
             placeholder="Recipient emails (comma separated)"
@@ -336,9 +386,10 @@ const ForwardEmail = ({ route, navigation }) => {
           <Ionicons name="attach" size={24} color="#8b5014" />
           <Text style={styles.attachText}>Attach File (Max 20MB)</Text>
         </TouchableOpacity>
-        {attachments.length > 0 && (
+        {newAttachments.length > 0 && (
           <View style={styles.attachmentsContainer}>
-            {attachments.map((attachment, index) => (
+            <Text style={styles.attachmentsLabel}>New Attachments:</Text>
+            {newAttachments.map((attachment, index) => (
               <View key={index} style={styles.attachmentItem}>
                 <Text style={styles.attachmentName}>{attachment.name}</Text>
                 <Text style={styles.attachmentSize}>
@@ -347,6 +398,21 @@ const ForwardEmail = ({ route, navigation }) => {
                 <TouchableOpacity onPress={() => removeAttachment(index)}>
                   <Ionicons name="close" size={20} color="#ff4444" />
                 </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+        {originalAttachments.length > 0 && (
+          <View style={styles.attachmentsContainer}>
+            <Text style={styles.originalAttachmentsLabel}>Original Attachments:</Text>
+            {originalAttachments.map((attachment, index) => (
+              <View key={`original-${index}`} style={styles.attachmentItem}>
+                <Text style={styles.attachmentName}>{attachment.filename || attachment.name}</Text>
+                {attachment.size && (
+                  <Text style={styles.attachmentSize}>
+                    {(attachment.size / (1024 * 1024)).toFixed(2)} MB
+                  </Text>
+                )}
               </View>
             ))}
           </View>
@@ -387,7 +453,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#dadce0',
   },
-  headerTitle: { fontSize: 18, fontWeight: '500', color: '#332b23' },
   backButton: { padding: 8 },
   sendButton: { padding: 8 },
   content: { flex: 1 },
@@ -423,6 +488,18 @@ const styles = StyleSheet.create({
   },
   attachText: { fontSize: 14, color: '#8b5014', marginLeft: 8 },
   attachmentsContainer: { padding: 16, backgroundColor: '#fef9f3' },
+  attachmentsLabel: {
+    fontSize: 14,
+    color: '#8b5014',
+    marginBottom: 8,
+    fontWeight: 'bold',
+  },
+  originalAttachmentsLabel: {
+    fontSize: 14,
+    color: '#8b5014',
+    marginBottom: 8,
+    fontWeight: 'bold',
+  },
   attachmentItem: {
     flexDirection: 'row',
     alignItems: 'center',

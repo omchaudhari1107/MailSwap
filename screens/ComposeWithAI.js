@@ -478,7 +478,7 @@ const ComposeWithAI = ({ navigation, route }) => {
             style={styles.input}
             value={user.email || from}
             editable={false}
-            placeholder="Your email"
+            // placeholder="Your email"
             placeholderTextColor="#5f6368"
           />
         </View>
@@ -489,12 +489,14 @@ const ComposeWithAI = ({ navigation, route }) => {
             style={styles.input}
             value={to}
             editable={editable}
+            keyboardType="email-address"
             onChangeText={(text) => {
               setTo(text);
               setToError('');
             }}
             placeholder="Recipient's email"
             placeholderTextColor="#5f6368"
+            autoCapitalize="none"
           />
           {toError ? <Text style={styles.errorText}>{toError}</Text> : null}
         </View>
@@ -510,6 +512,8 @@ const ComposeWithAI = ({ navigation, route }) => {
             }}
             placeholder="CC recipients (comma-separated)"
             placeholderTextColor="#5f6368"
+            autoCapitalize="none"
+            keyboardType="email-address"
           />
           <Text style={styles.ccNote}>Note: Separate multiple emails with commas</Text>
           {ccError ? <Text style={styles.errorText}>{ccError}</Text> : null}
