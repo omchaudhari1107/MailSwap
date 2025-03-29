@@ -179,6 +179,7 @@ const generateReply = async (originalMessage, userPrompt, email, user, setGenera
     setGeneratedReply(fallbackText);
   }
 };
+
 // Updated sendEmailReply Function
 const sendEmailReply = async (accessToken, to, subject, generatedReply, threadId, messageId, userName) => {
   try {
@@ -191,7 +192,6 @@ const sendEmailReply = async (accessToken, to, subject, generatedReply, threadId
           .map(line => `<p style="margin: 0 0 10px 0;">${line.trim()}</p>`)
           .join('')}
         <br/>
-        
       </div>
     `;
 
@@ -264,10 +264,10 @@ const EmailDetail = ({ route, navigation }) => {
   const [isSending, setIsSending] = useState(false);
   const spinValue = useRef(new Animated.Value(0)).current;
 
-
   const scrollY = new Animated.Value(0);
   useEffect(() => {
   }, [email]);
+  
   const shimmerAnimatedValue = new Animated.Value(0);
   useEffect(() => {
     if (isLoading || isGenerating || isSending) {
@@ -648,107 +648,105 @@ const EmailDetail = ({ route, navigation }) => {
       </ScrollView>
 
       <Modal
-  visible={showReplyModal}
-  animationType="slide"
-  transparent={true}
-  onRequestClose={handleToggleReplyModal}
->
-  <View style={styles.modalContainer}>
-    <View style={styles.modalContent}>
-      <View style={styles.modalHeader}>
-        <Text style={styles.replySectionTitle}>Reply</Text>
-          <TouchableOpacity onPress={handleToggleReplyModal}>
-            <Ionicons name="close" size={24} color="#332b23" />
-          </TouchableOpacity>
-        {/* {generatedReply && ( // Show close button only when generatedReply exists
-        )} */}
-      </View>
+        visible={showReplyModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleToggleReplyModal}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.replySectionTitle}>Reply</Text>
+              <TouchableOpacity onPress={handleToggleReplyModal}>
+                <Ionicons name="close" size={24} color="#332b23" />
+              </TouchableOpacity>
+            </View>
 
-      {!generatedReply ? (
-        <>
-          <TextInput
-            style={styles.promptInput}
-            placeholder="Enter your prompt (e.g., ' Agree to the meeting time')"
-            value={replyPrompt}
-            onChangeText={setReplyPrompt}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
-            onPress={handleGenerateReply}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                <Ionicons name="refresh" size={20} color="#ffdbc1" />
-              </Animated.View>
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
-                <Text style={styles.generateButtonText}>Generate Reply</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </>
-      ) : (
-        <View style={styles.replyPreview}>
-          <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
-          {isEditing ? (
-            <>
-              <TextInput
-                style={styles.editInput}
-                value={editedReply}
-                onChangeText={setEditedReply}
-                multiline
-                autoFocus
-              />
-              <View style={styles.replyActions}>
+            {!generatedReply ? (
+              <>
+                <TextInput
+                  style={styles.promptInput}
+                  placeholder="Enter your prompt (e.g., ' Agree to the meeting time')"
+                  value={replyPrompt}
+                  onChangeText={setReplyPrompt}
+                  multiline
+                />
                 <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={handleSaveEdit}
+                  style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+                  onPress={handleGenerateReply}
+                  disabled={isGenerating}
                 >
-                  <Ionicons name="checkmark" size={20} color="#ffdbc1" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => setIsEditing(false)}
-                >
-                  <Ionicons name="close" size={20} color="#ffdbc1" />
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.replyPreviewText}>{generatedReply}</Text>
-              <View style={styles.replyActions}>
-                <TouchableOpacity
-                  style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
-                  onPress={handleSendReply}
-                  disabled={isSending}
-                >
-                  {isSending ? (
+                  {isGenerating ? (
                     <Animated.View style={{ transform: [{ rotate: spin }] }}>
                       <Ionicons name="refresh" size={20} color="#ffdbc1" />
                     </Animated.View>
                   ) : (
-                    <Text style={styles.sendButtonText}>Send</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
+                      <Text style={styles.generateButtonText}>Generate Reply</Text>
+                    </View>
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={handleEditReply}
-                  disabled={isSending}
-                >
-                  <Ionicons name="pencil" size={20} color="#ffdbc1" />
-                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.replyPreview}>
+                <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
+                {isEditing ? (
+                  <>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editedReply}
+                      onChangeText={setEditedReply}
+                      multiline
+                      autoFocus
+                    />
+                    <View style={styles.replyActions}>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={handleSaveEdit}
+                      >
+                        <Ionicons name="checkmark" size={20} color="#ffdbc1" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => setIsEditing(false)}
+                      >
+                        <Ionicons name="close" size={20} color="#ffdbc1" />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.replyPreviewText}>{generatedReply}</Text>
+                    <View style={styles.replyActions}>
+                      <TouchableOpacity
+                        style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+                        onPress={handleSendReply}
+                        disabled={isSending}
+                      >
+                        {isSending ? (
+                          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                            <Ionicons name="refresh" size={20} color="#ffdbc1" />
+                          </Animated.View>
+                        ) : (
+                          <Text style={styles.sendButtonText}>Send</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={handleEditReply}
+                        disabled={isSending}
+                      >
+                        <Ionicons name="pencil" size={20} color="#ffdbc1" />
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
               </View>
-            </>
-          )}
+            )}
+          </View>
         </View>
-      )}
-    </View>
-  </View>
-</Modal>
+      </Modal>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.actionButton} onPress={handleToggleReplyModal}>

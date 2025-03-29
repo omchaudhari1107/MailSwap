@@ -501,7 +501,7 @@ const MailBox = ({ route, navigation }) => {
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
-        console.error('Fetch emails error:', error);
+        // console.error('Fetch emails error:', error);
       }
     } finally {
       if (currentCategoryRef.current === category) {

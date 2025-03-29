@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 100,
     borderWidth: 6,
-    borderColor: 'transparent',
+    borderColor: '#8b5014',
   },
   editIconContainer: {
     position: 'absolute',
