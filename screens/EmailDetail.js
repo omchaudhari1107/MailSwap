@@ -258,7 +258,6 @@ const EmailDetail = ({ route, navigation }) => {
 
   const scrollY = new Animated.Value(0);
   useEffect(() => {
-    console.log('Email object:', JSON.stringify(email, null, 2));
   }, [email]);
   const shimmerAnimatedValue = new Animated.Value(0);
   useEffect(() => {

@@ -272,7 +272,7 @@ const ForwardEmail = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#332b23" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Forward</Text>
+        {/* <Text style={styles.headerTitle}>Forward</Text> */}
         <TouchableOpacity onPress={handleSend} style={styles.sendButton} disabled={isSending}>
           <Ionicons name="send" size={24} color={to || cc ? '#8b5014' : '#dadce0'} />
         </TouchableOpacity>
