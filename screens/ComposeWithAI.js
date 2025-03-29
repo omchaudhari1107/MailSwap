@@ -41,7 +41,7 @@ const isValidEmailList = (emails) => {
 
 const ComposeWithAI = ({ navigation, route }) => {
   const [from, setFrom] = useState('');
-  const [editable,setIsEditable] = useState(true)
+  const [editable, setIsEditable] = useState(true);
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [subject, setSubject] = useState('');
@@ -64,14 +64,46 @@ const ComposeWithAI = ({ navigation, route }) => {
   const generatedEmailRef = useRef(null);
   const user = route.params?.user || {};
   const send_to = route.params?.email?.from || '';
-  const tones = ['Professional', 'Casual', 'Formal', 'Brief'];
+  const tones = [
+    'Formal',
+    'Professional',
+    'Creative',
+    'Clear & Concise',
+    'Friendly',
+    'Critical',
+    'Action Oriented',
+    'Neutral',
+    'Positive'
+  ];
   const lengths = ['Short', 'Medium', 'Long'];
+
+   // Define tone and length icons
+
+   const toneIcons = {
+    'Formal': '💼',
+    'Professional': '🏢',
+    'Creative': '🎨',
+    'Clear & Concise': '📩',  
+    'Friendly': '🤗',
+    'Critical': '⚠️',
+    'Action Oriented': '🚀',
+    'Neutral': '😐',
+    'Positive': '👍'
+  };
+  
+
+  const lengthIcons = {
+    'Short': '🐤', 
+    'Medium': '🦊', 
+    'Long': '🐘'
+};
   useEffect(() => {
     if (send_to) {
       setTo(send_to);
-      setIsEditable(false) // Pre-fill "To" field for replies
+      setIsEditable(false); // Pre-fill "To" field for replies
     }
   }, [send_to]);
+
   useEffect(() => {
     if (generatedEmail && !displayedEmail) {
       setIsTyping(true);
@@ -90,20 +122,19 @@ const ComposeWithAI = ({ navigation, route }) => {
   
     // Handle hardware back button
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      // if (hasUnsavedChanges()) {
-        Alert.alert(
-          'Discard Changes?',
-          'Any changes made to this email format will be lost, are you sure you want to go back?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Yes',
-              style: 'destructive',
-              onPress: () => navigation.goBack(),
-            },
-          ]
-        );
-        return true; 
+      Alert.alert(
+        'Discard Changes?',
+        'Any changes made to this email format will be lost, are you sure you want to go back?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Yes',
+            style: 'destructive',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+      return true; 
     });
   
     // Cleanup the event listener on unmount
@@ -165,21 +196,27 @@ const ComposeWithAI = ({ navigation, route }) => {
     setIsGenerating(true);
 
     try {
-      const aiPrompt = `${user.name || 'User'} wants to generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only the subject and main content, ensuring proper greetings and closing based on the context.  
-
-      For **professional emails**, use greetings like "Respected Sir/Madam" and closings like "Yours sincerely, \n [User's Name]" or "Yours faithfully,\n [User's Name]."  
-      For **casual emails**, use greetings like "Dear friend" or "Sir" and closings like "Yours truly,\n [User's Name]" or "Lovingly, \n [User's Name]."  
-      means after every closing like "Yours sincerely" or "Yours faithfully" add a new line and then add the user's name.
+      const aiPrompt = `${user.name || 'User'} wants to generate a ${selectedLength.toLowerCase()} ${selectedTone.toLowerCase()} email with only the subject and main content, ensuring proper greetings and closings based on the context and tone.  
+      Use the following guidelines for greetings and closings based on the selected tone:  
+      - For 'formal' or 'professional' tones, use greetings like "Respected Sir/Madam," "Dear [Recipient's Name]," "To Whom It May Concern" (ideal when the recipient is unknown, such as in cover letters or customer service emails), "Dear [Position or Title]" (e.g., “Dear Hiring Manager” or “Dear Professor” when addressing someone by their role), or "Dear Valued Customer" (a courteous choice for formal customer service emails to clients), and closings like "Yours sincerely,\n [User's Name]" or "Yours faithfully,\n [User's Name]" with a polite and respectful style.  
+      - For 'creative' tone, use imaginative greetings like "Hello there, [Recipient's Name]!," "Greetings, fellow dreamer," "Long time no see" (great for reconnecting with someone you haven’t spoken to in a while), "A Warm Hello to You" (a welcoming and unique opening), "Sending Good Vibes Your Way" (friendly, casual, and positive), or "Guess Who’s Emailing You?" (adds a fun, conversational twist), and closings like "With a sprinkle of joy,\n [User's Name]" or "Creatively yours,\n [User's Name]," adding 1-3 emojis relevant to the context (e.g., ✨, 😊, 🚀).  
+      - For 'clear & concise' tone, use straightforward greetings like "Hello [Recipient's Name]" or "Dear Sir/Madam" and closings like "Regards,\n [User's Name]" or "Best,\n [User's Name]" with a direct and minimalistic style.  
+      - For 'friendly' tone, use warm greetings like "Dear friend," "Hi [Recipient's Name]," "What’s Up [Name]?" (adds a personal touch, though use sparingly in professional settings), or "Hello, sunshine" (very informal and playful, best for friends or colleagues you know well), and closings like "Yours truly,\n [User's Name]" or "Warm regards,\n [User's Name]" with a casual and approachable style.  
+      - For 'critical' tone, use firm greetings like "Dear [Recipient's Name]" or "To whom it may concern" and closings like "Regards,\n [User's Name]" or "Sincerely,\n [User's Name]" with a serious and assertive style.  
+      - For 'action oriented' tone, use urgent greetings like "Hello [Recipient's Name]" or "Dear Team" and closings like "Let’s move forward,\n [User's Name]" or "Actively yours,\n [User's Name]" with a motivating and directive style.  
+      - For 'neutral' tone, use simple greetings like "Hello" or "Dear [Recipient's Name]" and closings like "Best regards,\n [User's Name]" or "Sincerely,\n [User's Name]" with a balanced and unemotional style.  
+      - For 'positive' tone, use upbeat greetings like "Hi there!" or "Dear [Recipient's Name]" and closings like "Cheers,\n [User's Name]" or "With optimism,\n [User's Name]" with an encouraging and enthusiastic style.  
+      Always add a new line after the closing (e.g., "Yours sincerely") before appending the user's name.  
       Format the response as follows without enclosing the subject or content in quotes:  
       Subject: [subject line]  
       
       [main content with appropriate line breaks if needed]  
       [Proper greeting at the start with \n]  
-      [Email body]  
-      [Proper closing as per the tone, followed by the \n user's name ]  
+      [Email body tailored to the selected tone and context]  
+      [Proper closing as per the tone, followed by \n [User's Name]]  
       
       Email context: "${prompt} and ensure the email ends with proper regards."`;
-            
+
       const response = await together.chat.completions.create({
         messages: [{"role": "user", "content": aiPrompt}],
         model: "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
@@ -202,19 +239,19 @@ const ComposeWithAI = ({ navigation, route }) => {
   };
 
   const handleBackPress = () => {
-      Alert.alert(
-        'Discard Changes?',
-        'Any changes made to this email format will be lost, are you sure you want to go back?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Yes',
-            style: 'destructive',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-      return true;
+    Alert.alert(
+      'Discard Changes?',
+      'Any changes made to this email format will be lost, are you sure you want to go back?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: () => navigation.goBack(),
+        },
+      ]
+    );
+    return true;
   };
 
   const sendEmail = async () => {
@@ -455,7 +492,7 @@ const ComposeWithAI = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-      <TouchableOpacity onPress={handleBackPress}>
+        <TouchableOpacity onPress={handleBackPress}>
           <Ionicons name="arrow-back" size={isTablet ? 28 : 24} color="#000000" style={styles.boldIcon} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.profileHeader}>
@@ -478,7 +515,7 @@ const ComposeWithAI = ({ navigation, route }) => {
             style={styles.input}
             value={user.email || from}
             editable={false}
-            // placeholder="Your email"
+            placeholder="Your email"
             placeholderTextColor="#5f6368"
           />
         </View>
@@ -490,13 +527,13 @@ const ComposeWithAI = ({ navigation, route }) => {
             value={to}
             editable={editable}
             keyboardType="email-address"
+            autoCapitalize="none"
             onChangeText={(text) => {
               setTo(text);
               setToError('');
             }}
             placeholder="Recipient's email"
             placeholderTextColor="#5f6368"
-            autoCapitalize="none"
           />
           {toError ? <Text style={styles.errorText}>{toError}</Text> : null}
         </View>
@@ -512,8 +549,6 @@ const ComposeWithAI = ({ navigation, route }) => {
             }}
             placeholder="CC recipients (comma-separated)"
             placeholderTextColor="#5f6368"
-            autoCapitalize="none"
-            keyboardType="email-address"
           />
           <Text style={styles.ccNote}>Note: Separate multiple emails with commas</Text>
           {ccError ? <Text style={styles.errorText}>{ccError}</Text> : null}
@@ -537,47 +572,57 @@ const ComposeWithAI = ({ navigation, route }) => {
               {promptError ? <Text style={styles.errorText}>{promptError}</Text> : null}
             </View>
 
+            <View style={styles.inputContainer}>
+            <Text style={styles.label}>WRITING TONE</Text>
             <View style={styles.tagContainer}>
               {tones.map(tone => (
                 <TouchableOpacity
-                  key={tone}
-                  style={[
-                    styles.tag,
-                    selectedTone === tone && styles.selectedTag,
-                  ]}
-                  onPress={() => setSelectedTone(tone)}
-                >
-                  <Text style={[
-                    styles.tagText,
-                    selectedTone === tone && styles.selectedTagText,
-                  ]}>
-                    {tone}
-                  </Text>
-                </TouchableOpacity>
+                key={tone}
+                style={[
+                  styles.tag,
+                  selectedTone === tone && styles.selectedTag,
+                ]}
+                onPress={() => setSelectedTone(tone)}
+              >
+                <Text style={styles.tagIcon}>{toneIcons[tone]}</Text> 
+                <Text style={[
+                  styles.tagText,
+                  selectedTone === tone && styles.selectedTagText,
+                ]}>
+                  {tone}
+                </Text>
+              </TouchableOpacity>
+              
               ))}
             </View>
+          </View>
 
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>LENGTH</Text>
             <View style={styles.tagContainer}>
               {lengths.map(length => (
                 <TouchableOpacity
-                  key={length}
-                  style={[
-                    styles.tag,
-                    selectedLength === length && styles.selectedTag,
-                  ]}
-                  onPress={() => setSelectedLength(length)}
-                >
-                  <Text style={[
-                    styles.tagText,
-                    selectedLength === length && styles.selectedTagText,
-                  ]}>
-                    {length}
-                  </Text>
-                </TouchableOpacity>
+                key={length}
+                style={[
+                  styles.tag,
+                  selectedLength === length && styles.selectedTag,
+                ]}
+                onPress={() => setSelectedLength(length)}
+              >
+                <Text style={styles.tagIcon}> {lengthIcons[length]} </Text> 
+                <Text style={[
+                  styles.tagText,
+                  selectedLength === length && styles.selectedTagText,
+                ]}>
+                  {length}
+                </Text>
+              </TouchableOpacity>              
               ))}
             </View>
-          </>
-        )}
+          </View>
+        </>
+      )}
+
 
         {showGenerateButton && !generatedEmail && (
           <TouchableOpacity 
@@ -708,7 +753,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f3f4',
     zIndex: 1001,
-    // height: HEADER_HEIGHT,
     width: '100%',
     position: 'fixed',
     top: 50,
@@ -777,6 +821,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginRight: 8,
     marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tagIcon: {
+    marginRight: 6,
   },
   selectedTag: {
     backgroundColor: '#ffdbc1',
@@ -934,7 +983,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex:1002,
+    zIndex: 1002,
   },
   loadingContainer: {
     backgroundColor: '#fff',

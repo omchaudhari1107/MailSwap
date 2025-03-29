@@ -604,7 +604,7 @@ const EmailDetail = ({ route, navigation }) => {
                 {email.senderName || email.sender.split('<')[0].trim()}
               </Text>
               <TouchableOpacity onPress={() => setShowFullHeader((prev) => !prev)}>
-                <Text style={styles.recipientText} numberOfLines={1}>
+                <Text style={styles.recipientText} numberOfLines={2}>
                   to {email.to}
                   <Ionicons name={showFullHeader ? 'chevron-up' : 'chevron-down'} size={16} color="#332b23" style={styles.expandIcon} />
                 </Text>
@@ -666,7 +666,7 @@ const EmailDetail = ({ route, navigation }) => {
               <>
                 <TextInput
                   style={styles.promptInput}
-                  placeholder="Enter your prompt (e.g., ' Agree to the meeting time')"
+                  placeholder="Enter your prompt (e.g., 'Reply it in a friendly tone')"
                   value={replyPrompt}
                   onChangeText={setReplyPrompt}
                   multiline

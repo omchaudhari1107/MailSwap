@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system';
 
 const ForwardEmail = ({ route, navigation }) => {
   const { email, user } = route.params;
+  console.log('ForwardEmailScreen email:', email);
   const [originalAttachments] = useState(email.attachments || []);
   const [from, setFrom] = useState(user.email);
   const [to, setTo] = useState('');
@@ -347,7 +348,7 @@ const ForwardEmail = ({ route, navigation }) => {
             style={[styles.input]}
             value={to}
             onChangeText={setTo}
-            placeholder="Recipient emails (comma separated)"
+            placeholder="Recipient email"
             keyboardType="email-address"
             autoCapitalize="none"
           />

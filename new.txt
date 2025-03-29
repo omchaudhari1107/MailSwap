@@ -1,11 +1,6 @@
-compose ai page:
-    multiple tags, ai multi language prompt 
-
-email detail
-    file openin , reply button , ui                                            --email detail page done ---not --still file opening issue
 
 main page
-    two buttons (footer), searching, company name for logo 
+    two buttons (footer), searching, company name for logo - EazyMail 
 
 login 
      for tablet, logo of app
