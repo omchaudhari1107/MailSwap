@@ -14,7 +14,8 @@ import { auth } from '../firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-
+import logo from '../assets/logo.png'; // Added logo import - adjust path as needed
+import { MaterialIcons } from '@expo/vector-icons';
 // Get screen dimensions dynamically
 const { width, height } = Dimensions.get('window');
 
@@ -92,9 +93,9 @@ const GoogleAuth = () => {
   useEffect(() => {
     if (!isLoading) {
       const slideInterval = setInterval(() => {
-        if (activeSlide < slides.length - 1) {
+        if (activeSlide < slides.length) {
           scrollViewRef.current?.scrollTo({
-            x: (activeSlide + 1) * (width * 0.9), // 90% of screen width
+            x: (activeSlide) * (width * 0.9),
             animated: true,
           });
           setActiveSlide(activeSlide + 1);
@@ -134,9 +135,16 @@ const GoogleAuth = () => {
     return (
       <View style={styles.splashContainer}>
         <View style={styles.splashLogoContainer}>
-          <MaterialCommunityIcons name="email-fast-outline" size={width * 0.15} color="#FFFFFF" />
+          <Image 
+            source={logo}
+            style={{
+              width: width * 0.3,
+              // height: width * 0.15,
+              resizeMode: 'contain'
+            }}
+          />
         </View>
-        <Text style={styles.splashTitle}>Mail Swap</Text>
+        <Text style={styles.splashTitle}>EazyMail</Text>
         <ActivityIndicator size="large" color="#27160a" style={styles.splashLoader} />
       </View>
     );
@@ -146,9 +154,16 @@ const GoogleAuth = () => {
     <View style={styles.container}>
       <View style={styles.contentContainer}>
         <View style={styles.logoContainer}>
-          <MaterialCommunityIcons name="email-fast-outline" size={width * 0.12} color="#FFFFFF" />
+          <Image 
+            source={logo}
+            style={{
+              width: width * 0.3,
+              height: width * 0.5,
+              resizeMode: 'contain'
+            }}
+          />
         </View>
-        <Text style={styles.title}>Mail Swap</Text>
+          <Text style={styles.title } >EazyMail</Text>
 
         <View style={styles.sliderContainer}>
           <ScrollView
@@ -182,8 +197,9 @@ const GoogleAuth = () => {
             style={styles.googleIcon}
           />
           <Text style={styles.buttonText}>Sign in with Google</Text>
+          {/* <MaterialIcons name="chevron-right" size={24} color="white" style={styles.rightIcon} /> */}
         </TouchableOpacity>
-
+            
         <Text style={styles.termsText}>
           By continuing, you agree to our <Text style={styles.linkText}>Terms of Service</Text> and{' '}
           <Text style={styles.linkText}>Privacy Policy</Text>
@@ -202,7 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   splashLogoContainer: {
-    width: width * 0.3,
+    width: width * 0.37,
     height: width * 0.3,
     backgroundColor: '#8b5014',
     borderRadius: width * 0.075,
@@ -238,49 +254,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.06,
   },
   logoContainer: {
-    width: width * 0.25,
-    height: width * 0.25,
-    // background Ascendant: true,
+    width: width * .37,
+    height: width * .3,
     backgroundColor: '#8b5014',
     borderRadius: width * 0.06,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: height * 0.05,
-    elevation: 5,
+    elevation: 50,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
   title: {
-    fontSize: width * 0.08,
+    fontSize: 30,
     fontWeight: '700',
-    color: '#27160a',
-    marginBottom: height * 0.02,
+    color: '#8b5014',
+    fontFamily:  'Quicksand',
+    marginBottom: 20,
     textAlign: 'center',
+  },
+  roundText: {
+    fontSize: 24,
+    letterSpacing: 1, // Slight spacing improves roundness
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   sliderContainer: {
     flex: 1,
     maxHeight: height * 0.5,
   },
   slide: {
+    display: 'flex',
     width: width * 0.9,
     alignItems: 'center',
     justifyContent: 'center',
     padding: width * 0.05,
   },
   slideTitle: {
-    fontSize: width * 0.06,
+    fontSize: 22,
     fontWeight: '700',
-    marginTop: height * 0.02,
-    marginBottom: height * 0.01,
+    marginTop: 15,
+    marginBottom: 10,
     textAlign: 'center',
   },
   slideDescription: {
-    fontSize: width * 0.04,
+    fontSize: 16,
     color: '#27160a',
     textAlign: 'center',
-    lineHeight: width * 0.06,
+    lineHeight: 24,
   },
   bottomContainer: {
     paddingHorizontal: width * 0.06,
@@ -290,15 +314,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffdbc1',
+    backgroundColor: '#8b5014',
     borderRadius: width * 0.04,
-    padding: width * 0.04,
-    marginBottom: height * 0.03,
+    padding: height * 0.02,
+    width: width * 0.9,
+    marginBottom: height * 0.025,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 0,
-    elevation: 7,
+    elevation: 10,
   },
   googleIcon: {
     width: width * 0.06,
@@ -306,17 +331,15 @@ const styles = StyleSheet.create({
     marginRight: width * 0.03,
   },
   buttonText: {
-    color: '#1A1A1A',
-    fontSize: width * 0.04,
+    color: '#ffdbc1',
+    fontSize: 16,
     fontWeight: '600',
   },
   termsText: {
-    fontSize: width * 0.035,
+    fontSize: 14,
     color: '#27160a',
     textAlign: 'center',
-    lineHeight: width *  
-   
-0.05,
+    lineHeight: 20,
   },
   linkText: {
     color: '#4285F4',
