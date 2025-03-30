@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "MailSwap",
+    "name": "Eazy Mail",
     "slug": "MailSwap",
     "version": "1.0.0",
+    "icon": "./assets/logo.png",
     "plugins": ["expo-router"],
     "permissions": [
       "documentPicker"
