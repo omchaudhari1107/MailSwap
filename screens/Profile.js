@@ -22,7 +22,10 @@ const Profile = ({ navigation, route }) => {
   const handleSignOut = async () => {
     try {
       await GoogleSignin.signOut();
-      navigation.navigate('GoogleAuth');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'GoogleAuth' }],
+      });
     } catch (error) {
       console.error('Sign out error:', error);
     }
