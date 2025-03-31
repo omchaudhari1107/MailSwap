@@ -20,6 +20,7 @@ import Fuse from 'fuse.js';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
+
 let tokenCache = { accessToken: null, expiresAt: 0 };
 const TOKEN_REFRESH_BUFFER = 300000;
 
@@ -37,21 +38,6 @@ const getGoogleToken = async () => {
   return tokenCache;
 };
 
-const decodeBase64 = (base64String) => {
-  try {
-    const normalized = base64String.replace(/-/g, '+').replace(/_/g, '/');
-    let padded = normalized;
-    while (padded.length % 4) padded += '=';
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  } catch (error) {
-    console.error('Error decoding base64:', error);
-    return '';
-  }
-};
-
 const getEmailBody = (payload) => {
   try {
     const getAttachmentInfo = (part) => {
@@ -64,37 +50,31 @@ const getEmailBody = (payload) => {
         mimeType: part.mimeType,
         attachmentId: part.body.attachmentId,
         size: part.body.size,
-        data: part.body.data, // Base64-encoded data if available
+        data: part.body.data,
       };
     };
 
-    // Decode base64 utility (assuming you have this defined elsewhere)
     const decodeBase64 = (data) => {
-      // Replace with your actual base64 decoding logic if not using Buffer
       return Buffer.from(data, 'base64').toString('utf-8');
     };
 
-    let textContent = ''; // Variable to store text data
-    let attachmentsContent = ''; // Variable to store attachments HTML
-    let attachments = []; // Array to store attachment details
+    let textContent = '';
+    let attachmentsContent = '';
+    let attachments = [];
 
-    // Handle payload.body directly if it contains data
     if (payload.body?.data) {
       if (payload.mimeType === 'text/html' || payload.mimeType === 'text/plain') {
         textContent = decodeBase64(payload.body.data);
       } else if (payload.mimeType.startsWith('image/') && payload.body.data) {
         attachments.push(getAttachmentInfo(payload));
       }
-      // For non-text direct body data, treat as attachment
     }
 
-    // Process parts for multipart MIME types
     if (payload.parts && payload.mimeType.startsWith('multipart/')) {
-      // First pass: Extract text content
       for (const part of payload.parts) {
         if (part.mimeType === 'text/html') {
           textContent = decodeBase64(part.body.data);
-          break; // Prefer HTML over plain text
+          break;
         }
       }
       if (!textContent) {
@@ -106,7 +86,6 @@ const getEmailBody = (payload) => {
         }
       }
 
-      // Second pass: Collect attachments
       for (const part of payload.parts) {
         if (
           part.filename ||
@@ -117,7 +96,6 @@ const getEmailBody = (payload) => {
         ) {
           attachments.push(getAttachmentInfo(part));
         } else if (part.mimeType === 'multipart/related' && part.parts) {
-          // Handle nested multipart/related (e.g., inline images)
           for (const subPart of part.parts) {
             if (
               subPart.filename ||
@@ -133,12 +111,11 @@ const getEmailBody = (payload) => {
       }
     }
 
-    // Handle specific single-part MIME types
     switch (payload.mimeType) {
       case 'message/rfc822':
         if (payload.parts) {
           const nestedContent = getEmailBody(payload.parts[0]);
-          textContent = nestedContent; // Recursive call might need adjustment based on structure
+          textContent = nestedContent;
         }
         break;
       case 'text/enriched':
@@ -176,9 +153,7 @@ const getEmailBody = (payload) => {
           }
         }
         break;
-    }
-
-    // Build attachments HTML
+      }
     if (attachments.length > 0) {
       attachmentsContent = '<div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">';
       attachmentsContent += '<h3>Attachments:</h3>';
@@ -191,9 +166,8 @@ const getEmailBody = (payload) => {
           return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
         })();
 
-        let iconOrThumbnail = '📎'; // Default icon
+        let iconOrThumbnail = '📎';
         if (attachment.mimeType.startsWith('image/') && attachment.data) {
-          // Thumbnail for images with data
           iconOrThumbnail = `<img src="data:${attachment.mimeType};base64,${attachment.data}" style="width: 100px; height: 100px; object-fit: cover;" />`;
         } else {
           switch (true) {
@@ -228,14 +202,12 @@ const getEmailBody = (payload) => {
       attachmentsContent += '</div></div>';
     }
 
-    // Combine text and attachments, ensuring text comes first
     return textContent + (attachmentsContent || '');
   } catch (error) {
     console.error('Error getting email body:', error, 'Payload:', payload);
     return '[Error: Could not decode email content]';
   }
 };
-
 
 const LETTER_COLORS = {
   A: '#FF6B6B', B: '#4ECDC4', C: '#45B7D1', D: '#96CEB4', E: '#FFEEAD',
@@ -245,7 +217,6 @@ const LETTER_COLORS = {
   U: '#FEE440', V: '#9B89B3', W: '#98C1D9', X: '#E56B6F', Y: '#8860D0',
   Z: '#5AB9EA',
 };
-
 
 const COMPANY_STYLES = {
   'google.com': { backgroundColor: '#fef7e0', avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' },
@@ -257,25 +228,24 @@ const COMPANY_STYLES = {
   'facebook.com': { backgroundColor: '#1877f2', avatar: 'https://www.facebook.com/favicon.ico' },
   'twitter.com': { backgroundColor: '#1da1f2', avatar: 'https://www.twitter.com/favicon.ico' },
   'linkedin.com': { backgroundColor: '#0a66c2', avatar: 'https://www.linkedin.com/favicon.ico' },
-};
-
-// const COMPANY_STYLES = {
+  'vercel.com': { backgroundColor: '#000000', avatar: 'https://vercel.com/favicon.ico' },
+  'dropbox.com': {avatar: 'https://www.iconsdb.com/icons/preview/blue/dropbox-xxl.png'},
+  'youtube.com': { avatar: 'https://cdn.mos.cms.futurecdn.net/R4DgSdP6erUexko5KuX6UF-650-80.jpg.webp' },
+    'apple.com': { backgroundColor: '#000000', avatar: 'https://www.apple.com/favicon.ico' },
+  };
+  
+  // const COMPANY_STYLES = {
 //   'google.com': { backgroundColor: '#fef7e0', avatar: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png' },
 //   'amazon.com': { backgroundColor: '#ff9900', avatar: 'https://www.amazon.com/favicon.ico' },
 //   'facebook.com': { backgroundColor: '#1877f2', avatar: 'https://www.facebook.com/favicon.ico' },
-//   'apple.com': { backgroundColor: '#000000', avatar: 'https://www.apple.com/favicon.ico' },
 //   'microsoft.com': { backgroundColor: '#00a4ef', avatar: 'https://www.microsoft.com/favicon.ico' },
-//   'vercel.com': { backgroundColor: '#000000', avatar: 'https://vercel.com/favicon.ico' },
-//   'dropbox.com': { backgroundColor: '#007ee5', avatar: 'https://www.dropbox.com/favicon.ico' },
 //   'twitter.com': { backgroundColor: '#1da1f2', avatar: 'https://www.twitter.com/favicon.ico' },
 //   'linkedin.com': { backgroundColor: '#0a66c2', avatar: 'https://www.linkedin.com/favicon.ico' },
-//   'youtube.com': { backgroundColor: '#ff0000', avatar: 'https://www.youtube.com/favicon.ico' },
 //   'instagram.com': { backgroundColor: '#c13584', avatar: 'https://www.instagram.com/favicon.ico' },
 //   'whatsapp.com': { backgroundColor: '#25d366', avatar: 'https://www.whatsapp.com/favicon.ico' },
 //   'pinterest.com': { backgroundColor: '#bd081c', avatar: 'https://www.pinterest.com/favicon.ico' },
 //   'netflix.com': { backgroundColor: '#E50914', avatar: 'https://assets.nflxext.com/us/ffe/siteui/common/icons/nficon2016.ico' },
 //   'reddit.com': { backgroundColor: '#ff4500', avatar: 'https://www.redditstatic.com/desktop2x/img/favicon/favicon-32x32.png' },
-//   'github.com': { backgroundColor: '#24292e', avatar: 'https://github.githubassets.com/favicons/favicon.svg' },
 //   'gitlab.com': { backgroundColor: '#fc6d26', avatar: 'https://about.gitlab.com/favicon.ico' },
 //   'bitbucket.org': { backgroundColor: '#205081', avatar: 'https://bitbucket.org/favicon.ico' },
 //   'gradle.org': { backgroundColor: '#02303A', avatar: 'https://gradle.org/favicon.ico' },
@@ -342,6 +312,7 @@ const MailBox = ({ route, navigation }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const currentCategoryRef = useRef('primary');
   const fetchControllerRef = useRef(null);
+  const performSearchRef = useRef(null); // Added to keep performSearch current
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -384,11 +355,7 @@ const MailBox = ({ route, navigation }) => {
     { key: 'sent', label: 'Sent', icon: 'send' },
     { key: 'starred', label: 'Starred', icon: 'star' },
     { key: 'spam', label: 'Spam', icon: 'alert-circle' },
-    // { key: 'archive' ,label: 'Archive', icon: 'archive' },
   ], []);
-
-  // <Ionicons name={category.icon} size={16} color={emailCategory === category.key ? '#291609' : '#5f6368'} /> for tags icon
-
 
   const preprocessedEmails = useMemo(() => {
     return emails.map(email => ({
@@ -437,7 +404,7 @@ const MailBox = ({ route, navigation }) => {
     fetchControllerRef.current = new AbortController();
     const signal = fetchControllerRef.current.signal;
 
-    setEmails([]); // Clear emails before fetching to avoid overlap
+    setEmails([]);
     currentCategoryRef.current = category;
 
     try {
@@ -446,10 +413,9 @@ const MailBox = ({ route, navigation }) => {
       if (category === 'spam') query = 'in:spam';
       else if (category === 'starred') query = 'is:starred';
       else if (category === 'sent') query = 'in:sent';
-      // else if (category === 'archive') query = '-in:inbox -in:spam -in:trash';
       else query = 'in:inbox -in:spam';
 
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20&q=${query}`, {
+      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50&q=${query}`, {
         headers: { Authorization: `Bearer ${tokens.accessToken}` },
         signal,
       });
@@ -599,7 +565,7 @@ const MailBox = ({ route, navigation }) => {
     return { terms, excludeTerms, fieldSpecific };
   }, []);
 
-  const handleSearch = useCallback(query => {
+  const handleSearch = useCallback((query) => {
     setSearchQuery(query);
     setIsSearching(!!query.trim());
     if (!query.trim()) {
@@ -607,11 +573,11 @@ const MailBox = ({ route, navigation }) => {
       setIsSearchLoading(false);
     } else {
       setIsSearchLoading(true);
-      debouncedSearch(query);
+      performSearchRef.current(query); // Use ref to ensure latest function
     }
   }, []);
 
-  const performSearch = useCallback(query => {
+  const performSearch = useCallback((query) => {
     if (!query.trim()) {
       setSearchResults([]);
       setIsSearchLoading(false);
@@ -637,7 +603,10 @@ const MailBox = ({ route, navigation }) => {
     setIsSearchLoading(false);
   }, [preprocessedEmails, fuseOptions]);
 
-  const debouncedSearch = useMemo(() => debounce(performSearch, 300), [performSearch]);
+  // Update the ref whenever performSearch changes
+  useEffect(() => {
+    performSearchRef.current = debounce(performSearch, 300);
+  }, [performSearch]);
 
   const handleSearchSubmit = useCallback(async () => {
     if (searchQuery.trim() && !recentSearches.includes(searchQuery)) {
@@ -677,17 +646,17 @@ const MailBox = ({ route, navigation }) => {
     setIsSelectionMode(false);
   }, []);
 
-const handleSelectAll = useCallback(() => {
-  setSelectedEmails(prev => {
-    const currentEmails = isSearching ? searchResults : emails; // Use the currently displayed emails based on search or category
-    if (prev.size === currentEmails.length && currentEmails.length > 0) {
-      setIsSelectionMode(false); // Exit selection mode if all are deselected
-      return new Set(); // Deselect all if already all selected
-    }
-    setIsSelectionMode(true); // Enter selection mode when selecting all
-    return new Set(currentEmails.map(email => email.id)); // Select all emails in the current category
-  });
-}, [isSearching, searchResults, emails]);
+  const handleSelectAll = useCallback(() => {
+    setSelectedEmails(prev => {
+      const currentEmails = isSearching ? searchResults : emails;
+      if (prev.size === currentEmails.length && currentEmails.length > 0) {
+        setIsSelectionMode(false);
+        return new Set();
+      }
+      setIsSelectionMode(true);
+      return new Set(currentEmails.map(email => email.id));
+    });
+  }, [isSearching, searchResults, emails]);
 
   const updateEmailReadStatus = useCallback(async (emailIds, markAsRead = true) => {
     const success = await batchModifyEmails(emailIds, {
@@ -976,18 +945,14 @@ const handleSelectAll = useCallback(() => {
           keyExtractor={(item, index) => (isInitialLoading || isRefreshing) ? index.toString() : item.id}
           contentContainerStyle={isSelectionMode ? styles.listWithFixedHeader : null}
           ListEmptyComponent={!isSearchLoading && !isInitialLoading && !isRefreshing && (
-            // import { Ionicons } from '@expo/vector-icons';
-
-            // import { Ionicons } from '@expo/vector-icons';
-
             <View style={styles.noEmailsContainer}>
-             <Ionicons 
-    name="mail-outline"    // Represents shredding/cutting
-    size={140}           // Larger size for a logo-like feel
-    color="#8b5014"      // Blue color to match the shredded paper in the image
-    style={styles.noEmailsIcon}
-  />
-  <Text style={styles.noEmailsText}>Nothing herein</Text>
+              <Ionicons 
+                name="mail-outline"
+                size={140}
+                color="#8b5014"
+                style={styles.noEmailsIcon}
+              />
+              <Text style={styles.noEmailsText}>Nothing herein</Text>
             </View>
           )}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#1a73e8']} tintColor="#1a73e8" />}
@@ -1184,7 +1149,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffdbc1',
   },
   emailCategoryChipText: {
-    // marginLeft: 6,
     fontSize: 14,
     color: '#5f6368',
   },
@@ -1243,9 +1207,6 @@ const styles = StyleSheet.create({
   },
   recentSearchArrow: {
     marginLeft: 8,
-  },
-  clearSearchButton: {
-    padding: 4,
   },
   searchResultsList: {
     flex: 1,
@@ -1372,7 +1333,6 @@ const styles = StyleSheet.create({
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    // backgroundColor: '#f9f5e7',
   },
   noEmailsText: {
     fontSize: 16,

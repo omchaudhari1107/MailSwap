@@ -17,7 +17,6 @@ const ProfileSection = ({ icon, title, value }) => (
 
 const Profile = ({ navigation, route }) => {
   const [user, setUser] = useState(route.params?.user || null);
-  // console.log(user)
   
   const handleSignOut = async () => {
     try {
@@ -34,7 +33,7 @@ const Profile = ({ navigation, route }) => {
   if (!user) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Loading profile...</Text>
+        <Text>Fetching profile...</Text>
       </View>
     );
   }

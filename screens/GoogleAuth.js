@@ -14,8 +14,7 @@ import { auth } from '../firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import logo from '../assets/logo.png'; // Added logo import - adjust path as needed
-import { MaterialIcons } from '@expo/vector-icons';
+import logo from '../assets/logo.png'; 
 // Get screen dimensions dynamically
 const { width, height } = Dimensions.get('window');
 
@@ -197,12 +196,11 @@ const GoogleAuth = () => {
             style={styles.googleIcon}
           />
           <Text style={styles.buttonText}>Sign in with Google</Text>
-          {/* <MaterialIcons name="chevron-right" size={24} color="white" style={styles.rightIcon} /> */}
         </TouchableOpacity>
             
         <Text style={styles.termsText}>
-          By continuing, you agree to our <Text style={styles.linkText}>Terms of Service</Text> and{' '}
-          <Text style={styles.linkText}>Privacy Policy</Text>
+          By continuing, you agree to our <Text>Terms of Service</Text> and{' '}
+          <Text>Privacy Policy</Text>
         </Text>
       </View>
     </View>
