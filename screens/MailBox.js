@@ -525,6 +525,23 @@ const MailBox = ({ route, navigation }) => {
     }
   }, []);
 
+
+// ***
+// useFocusEffect(
+//   useCallback(() => {
+//     handleRefresh();
+//     GoogleSignin.configure({
+//       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
+//       offlineAccess: true,
+//     });
+//     return () => {
+//       if (fetchControllerRef.current) {
+//         fetchControllerRef.current.abort();
+//       }
+//     };
+//   }, [handleRefresh])
+// );
+
   useEffect(() => {
     const loadEmails = async () => {
       setIsInitialLoading(true);
@@ -541,6 +558,8 @@ const MailBox = ({ route, navigation }) => {
       }
     };
   }, [fetchEmails]);
+
+
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);

@@ -8,13 +8,14 @@ import {
   ScrollView,
   Dimensions,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { auth } from '../firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import logo from '../assets/logo.png'; 
+import logo from '../assets/logo.png';
 // Get screen dimensions dynamically
 const { width, height } = Dimensions.get('window');
 
@@ -64,11 +65,11 @@ const GoogleAuth = () => {
       offlineAccess: true,
     });
 
-    const checkAuthStatus = async () => {
+    const checkAuthStatus = () => {
       try {
-        const isSignedIn = await GoogleSignin.hasPreviousSignIn();
+        const isSignedIn = GoogleSignin.hasPreviousSignIn();
         if (isSignedIn) {
-          const currentUser = await GoogleSignin.getCurrentUser();
+          const currentUser = GoogleSignin.getCurrentUser();
           if (currentUser) {
             navigation.reset({
               index: 0,
@@ -134,7 +135,7 @@ const GoogleAuth = () => {
     return (
       <View style={styles.splashContainer}>
         <View style={styles.splashLogoContainer}>
-          <Image 
+          <Image
             source={logo}
             style={{
               width: width * 0.3,
@@ -153,7 +154,7 @@ const GoogleAuth = () => {
     <View style={styles.container}>
       <View style={styles.contentContainer}>
         <View style={styles.logoContainer}>
-          <Image 
+          <Image
             source={logo}
             style={{
               width: width * 0.3,
@@ -162,7 +163,7 @@ const GoogleAuth = () => {
             }}
           />
         </View>
-          <Text style={styles.title } >EazyMail</Text>
+        <Text style={styles.title} >EazyMail</Text>
 
         <View style={styles.sliderContainer}>
           <ScrollView
@@ -197,10 +198,20 @@ const GoogleAuth = () => {
           />
           <Text style={styles.buttonText}>Sign in with Google</Text>
         </TouchableOpacity>
-            
+
         <Text style={styles.termsText}>
-          By continuing, you agree to our <Text>Terms of Service</Text> and{' '}
-          <Text>Privacy Policy</Text>
+          By continuing, you agree to our{' '}
+          <Text
+            style={styles.linkText}
+            onPress={() => Linking.openURL('https://mailswap09.github.io/terms.html')}>
+            Terms of Service
+          </Text>{' '}
+          and{' '}
+          <Text
+            style={styles.linkText}
+            onPress={() => Linking.openURL('https://mailswap09.github.io/privacy.html')}>
+            Privacy Policy
+          </Text>
         </Text>
       </View>
     </View>
@@ -269,7 +280,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     color: '#8b5014',
-    fontFamily:  'Quicksand',
+    fontFamily: 'Quicksand',
     marginBottom: 20,
     textAlign: 'center',
   },
