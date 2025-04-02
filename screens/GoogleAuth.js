@@ -61,7 +61,11 @@ const GoogleAuth = () => {
   useEffect(() => {
     GoogleSignin.configure({
       webClientId: '798624486063-vm81209jpdbncait5o4nis8ifup2cjmq.apps.googleusercontent.com',
-      scopes: ['https://www.googleapis.com/auth/gmail.modify'],
+      scopes: [
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/gmail.send'
+      ],
       offlineAccess: true,
     });
 
