@@ -13,6 +13,7 @@ import {
   StatusBar,
   TextInput,
   Modal,
+  // ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import WebView from 'react-native-webview';
@@ -648,105 +649,103 @@ const EmailDetail = ({ route, navigation }) => {
       </ScrollView>
 
       <Modal
-        visible={showReplyModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleToggleReplyModal}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.replySectionTitle}>Reply</Text>
-              <TouchableOpacity onPress={handleToggleReplyModal}>
-                <Ionicons name="close" size={24} color="#332b23" />
-              </TouchableOpacity>
-            </View>
+  visible={showReplyModal}
+  animationType="slide"
+  transparent={true}
+  onRequestClose={handleToggleReplyModal}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.modalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.replySectionTitle}>Reply</Text>
+        <TouchableOpacity onPress={handleToggleReplyModal}>
+          <Ionicons name="close" size={24} color="#332b23" />
+        </TouchableOpacity>
+      </View>
 
-            {!generatedReply ? (
-              <>
+      {!generatedReply ? (
+        <>
+          <TextInput
+            style={styles.promptInput}
+            placeholder="Enter your prompt (e.g., 'Reply it in a friendly tone')"
+            value={replyPrompt}
+            onChangeText={setReplyPrompt}
+            multiline
+          />
+          <TouchableOpacity
+            style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+            onPress={handleGenerateReply}
+            disabled={isGenerating}
+          >
+            {isGenerating ? (
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="refresh" size={20} color="#ffdbc1" />
+              </Animated.View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
+                <Text style={styles.generateButtonText}>Generate Reply</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </>
+      ) : (
+        <View style={styles.replyPreviewContainer}>
+          <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
+          {isEditing ? (
+            <>
+              <ScrollView style={styles.replyScroll}>
                 <TextInput
-                  style={styles.promptInput}
-                  placeholder="Enter your prompt (e.g., 'Reply it in a friendly tone')"
-                  value={replyPrompt}
-                  onChangeText={setReplyPrompt}
+                  style={styles.editInput}
+                  value={editedReply}
+                  onChangeText={setEditedReply}
                   multiline
+                  autoFocus
                 />
+              </ScrollView>
+              <View style={styles.replyActions}>
+                <TouchableOpacity style={styles.iconButton} onPress={handleSaveEdit}>
+                  <Ionicons name="checkmark" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconButton} onPress={() => setIsEditing(false)}>
+                  <Ionicons name="close" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <ScrollView style={styles.replyScroll}>
+                <Text style={styles.replyPreviewText}>{generatedReply}</Text>
+              </ScrollView>
+              <View style={styles.replyActions}>
                 <TouchableOpacity
-                  style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
-                  onPress={handleGenerateReply}
-                  disabled={isGenerating}
+                  style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
+                  onPress={handleSendReply}
+                  disabled={isSending}
                 >
-                  {isGenerating ? (
+                  {isSending ? (
                     <Animated.View style={{ transform: [{ rotate: spin }] }}>
                       <Ionicons name="refresh" size={20} color="#ffdbc1" />
                     </Animated.View>
                   ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="sparkles" size={24} color="#ffdbc1" style={styles.aiicon} />
-                      <Text style={styles.generateButtonText}>Generate Reply</Text>
-                    </View>
+                    <Text style={styles.sendButtonText}>Send</Text>
                   )}
                 </TouchableOpacity>
-              </>
-            ) : (
-              <View style={styles.replyPreview}>
-                <Text style={styles.replyPreviewTitle}>Generated Reply:</Text>
-                {isEditing ? (
-                  <>
-                    <TextInput
-                      style={styles.editInput}
-                      value={editedReply}
-                      onChangeText={setEditedReply}
-                      multiline
-                      autoFocus
-                    />
-                    <View style={styles.replyActions}>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={handleSaveEdit}
-                      >
-                        <Ionicons name="checkmark" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={() => setIsEditing(false)}
-                      >
-                        <Ionicons name="close" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.replyPreviewText}>{generatedReply}</Text>
-                    <View style={styles.replyActions}>
-                      <TouchableOpacity
-                        style={[styles.sendButton, isSending && styles.sendButtonDisabled]}
-                        onPress={handleSendReply}
-                        disabled={isSending}
-                      >
-                        {isSending ? (
-                          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                            <Ionicons name="refresh" size={20} color="#ffdbc1" />
-                          </Animated.View>
-                        ) : (
-                          <Text style={styles.sendButtonText}>Send</Text>
-                        )}
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.iconButton}
-                        onPress={handleEditReply}
-                        disabled={isSending}
-                      >
-                        <Ionicons name="pencil" size={20} color="#ffdbc1" />
-                      </TouchableOpacity>
-                    </View>
-                  </>
-                )}
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleEditReply}
+                  disabled={isSending}
+                >
+                  <Ionicons name="pencil" size={20} color="#ffdbc1" />
+                </TouchableOpacity>
               </View>
-            )}
-          </View>
+            </>
+          )}
         </View>
-      </Modal>
+      )}
+    </View>
+  </View>
+</Modal>
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.actionButton} onPress={handleToggleReplyModal}>
@@ -834,8 +833,9 @@ const styles = StyleSheet.create({
   actionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#8b5014', borderRadius: 20 },
   actionButtonText: { fontSize: 14, color: '#ffdbc1', marginLeft: 8, fontWeight: '500' },
   modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)' },
-  modalContent: { width: '90%', backgroundColor: '#fef9f3', borderRadius: 8, padding: 16, maxHeight: '80%' },
+  modalContent: { width: '90%', backgroundColor: '#fef9f3', borderRadius: 8, padding: 16, maxHeight:'80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  replyPreviewContainer: { padding: 12, backgroundColor: '#f8e5d6', borderRadius: 4, maxHeight:'93%' },
   replySectionTitle: { fontSize: 18, fontWeight: '500', color: '#202124' },
   promptInput: { borderWidth: 1, borderColor: '#dadce0', borderRadius: 4, padding: 8, minHeight: 60, textAlignVertical: 'top', marginBottom: 12 },
   generateButton: {
@@ -855,7 +855,8 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#f8e5d6',
     borderRadius: 4,
-    minHeight: 100,
+    minHeight: 10,
+    
   },
   replyPreviewTitle: { fontSize: 16, fontWeight: '500', color: '#202124', marginBottom: 8 },
   replyPreviewText: { fontSize: 14, color: '#202124', marginBottom: 12 },
