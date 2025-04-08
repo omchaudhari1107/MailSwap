@@ -495,6 +495,7 @@ const ComposeWithAI = ({ navigation, route }) => {
         <TouchableOpacity onPress={handleBackPress}>
           <Ionicons name="arrow-back" size={isTablet ? 28 : 24} color="#000000" style={styles.boldIcon} />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Compose with AI</Text>
         <TouchableOpacity style={styles.profileHeader}>
           <Image 
             source={{ uri: user.photo || user.photoURL || 'https://cdn.pixabay.com/photo/2016/11/14/17/39/person-1824147_640.png' }} 
@@ -507,7 +508,7 @@ const ComposeWithAI = ({ navigation, route }) => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.headerTitle}>Compose with AI</Text>
+        
         
         <View style={styles.inputContainer}>
           <Text style={styles.label}>From</Text>
@@ -763,7 +764,7 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontWeight: '600',
     textAlign: 'center',
-    marginVertical: height * 0.02,
+    // marginVertical: height * 0.02,
   },
   contentContainer: {
     paddingHorizontal: width * 0.04,
